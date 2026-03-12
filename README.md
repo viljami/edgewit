@@ -9,7 +9,7 @@ It provides powerful full-text search and aggregations for local observability, 
 ## Features & Core Principles
 
 - **Edge-First Architecture**: Runs deterministically within strict constraints (< 150MB resident memory target).
-- **OpenSearch Compatible Subset**: Easily integrate with existing logging/observability agents by mimicking standard cluster, ingest, and search APIs.
+- **OpenSearch Compatible (Subset)**: Easily integrate with existing logging/observability agents by mimicking standard cluster, ingest, and search APIs. Note that it implements only a focused subset of the full OpenSearch API.
 - **Rust Safety & Performance**: Written purely in Rust, minimizing binary footprint while offering massive concurrency and CPU safety.
 - **Crash-Resilient Local WAL**: Custom Write-Ahead Log implementation explicitly designed to batch syncs and minimize unpredictable IOPS on edge SD-Cards, while ensuring 100% crash recovery.
 - **Simple Deployment**: Single binary. Single container. No JVM, no external database dependencies.

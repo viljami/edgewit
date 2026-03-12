@@ -214,7 +214,7 @@ deliverables:
 success criteria:
 index remains performant over long-running ingestion
 
-M6 EDGE OPTIMIZATION
+M6 EDGE OPTIMIZATION [DONE]
 goal:
 optimize for constrained hardware
 
@@ -229,7 +229,7 @@ deliverables:
 success criteria:
 stable operation on Raspberry Pi with limited memory
 
-M7 OPENSEARCH COMPATIBILITY
+M7 OPENSEARCH COMPATIBILITY [DONE]
 goal:
 make integration simple for existing tools
 

@@ -63,11 +63,17 @@ pub async fn root_handler() -> Json<Value> {
         "name": "edgewit-node-1",
         "cluster_name": "edgewit",
         "version": {
-            "distribution": "edgewit",
-            "number": "0.1.0",
+            "distribution": "opensearch",
+            "number": "2.11.0",
+            "build_hash": "unknown",
+            "build_date": "2023-10-01T00:00:00Z",
+            "build_snapshot": false,
+            "lucene_version": "9.7.0",
+            "minimum_wire_compatibility_version": "7.10.0",
+            "minimum_index_compatibility_version": "7.0.0",
             "build_type": "binary"
         },
-        "tagline": "You Know, for Edge"
+        "tagline": "The OpenSearch Project: https://opensearch.org/"
     }))
 }
 
@@ -157,11 +163,17 @@ mod tests {
         {
           "cluster_name": "edgewit",
           "name": "edgewit-node-1",
-          "tagline": "You Know, for Edge",
+          "tagline": "The OpenSearch Project: https://opensearch.org/",
           "version": {
+            "build_date": "2023-10-01T00:00:00Z",
+            "build_hash": "unknown",
+            "build_snapshot": false,
             "build_type": "binary",
-            "distribution": "edgewit",
-            "number": "0.1.0"
+            "distribution": "opensearch",
+            "lucene_version": "9.7.0",
+            "minimum_index_compatibility_version": "7.0.0",
+            "minimum_wire_compatibility_version": "7.10.0",
+            "number": "2.11.0"
           }
         }
         "###);

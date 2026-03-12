@@ -44,7 +44,7 @@ pub struct AppState {
     )),
     info(
         title = "Edgewit API",
-        description = "Lightweight, Rust-based search and analytics engine for edge environments.",
+        description = "Lightweight, Rust-based search and analytics engine for edge environments. Implements a focused subset of the OpenSearch API.",
         version = "0.1.0"
     )
 )]

@@ -217,6 +217,58 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
             if q.get("match_all").is_some() {
                 return "*".to_string();
             }
+
+            // If they passed {"query": {"match": {"field": "value"}}}
+            if let Some(m) = q.get("match") {
+                if let Some(obj) = m.as_object() {
+                    for (k, v) in obj {
+                        if let Some(s) = v.as_str() {
+                            return format!("{}:{}", k, s);
+                        } else if let Some(obj2) = v.as_object() {
+                            if let Some(q_val) = obj2.get("query").and_then(|v| v.as_str()) {
+                                return format!("{}:{}", k, q_val);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Basic fallback for other simple queries (e.g., bool -> must -> match)
+            if let Some(bool_q) = q.get("bool") {
+                if let Some(must) = bool_q.get("must") {
+                    if let Some(arr) = must.as_array() {
+                        let mut parts = Vec::new();
+                        for item in arr {
+                            if let Some(m) = item.get("match") {
+                                if let Some(obj) = m.as_object() {
+                                    for (k, v) in obj {
+                                        if let Some(s) = v.as_str() {
+                                            parts.push(format!("{}:{}", k, s));
+                                        } else if let Some(obj2) = v.as_object() {
+                                            if let Some(q_val) =
+                                                obj2.get("query").and_then(|v| v.as_str())
+                                            {
+                                                parts.push(format!("{}:{}", k, q_val));
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if let Some(m) = item.get("match_phrase") {
+                                if let Some(obj) = m.as_object() {
+                                    for (k, v) in obj {
+                                        if let Some(s) = v.as_str() {
+                                            parts.push(format!("{}:\"{}\"", k, s));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if !parts.is_empty() {
+                            return parts.join(" AND ");
+                        }
+                    }
+                }
+            }
         }
     }
 
