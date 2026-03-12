@@ -118,7 +118,7 @@ PERFORMANCE TARGETS
 
 PROJECT MILESTONES
 
-M0 PROJECT FOUNDATION
+M0 PROJECT FOUNDATION [DONE]
 goal:
 establish minimal runnable system and repository structure
 

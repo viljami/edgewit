@@ -1,7 +1,22 @@
-use axum::{Router, response::Json, routing::get};
+use axum::{
+    Router,
+    extract::{Path, State},
+    http::StatusCode,
+    response::Json,
+    routing::{get, post},
+};
+use bytes::Bytes;
 use serde::Serialize;
 use serde_json::{Value, json};
+use tokio::sync::oneshot;
 use utoipa::{OpenApi, ToSchema};
+
+use crate::wal::{IngestEvent, WalRequest};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub wal_sender: tokio::sync::mpsc::Sender<WalRequest>,
+}
 
 #[derive(Serialize, ToSchema)]
 pub struct HealthResponse {
@@ -123,10 +138,124 @@ pub async fn stats_handler() -> Json<StatsResponse> {
     })
 }
 
+/// Handler for ingesting a single document
+#[utoipa::path(
+    post,
+    path = "/{index}/_doc",
+    responses(
+        (status = 201, description = "Document ingested successfully", body = Object),
+        (status = 500, description = "Failed to write to WAL")
+    ),
+    params(
+        ("index" = String, Path, description = "Index name to ingest into")
+    )
+)]
+pub async fn ingest_doc_handler(
+    State(state): State<AppState>,
+    Path(index): Path<String>,
+    body: Bytes,
+) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
+    let (tx, rx) = oneshot::channel();
+
+    let req = WalRequest {
+        event: IngestEvent {
+            index: index.clone(),
+            payload: body.to_vec(),
+        },
+        responder: tx,
+    };
+
+    if state.wal_sender.send(req).await.is_err() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "WAL channel closed".to_string(),
+        ));
+    }
+
+    match rx.await {
+        Ok(Ok(_)) => Ok((
+            StatusCode::CREATED,
+            Json(json!({
+                "_index": index,
+                "result": "created",
+                "_shards": {
+                    "total": 1,
+                    "successful": 1,
+                    "failed": 0
+                }
+            })),
+        )),
+        Ok(Err(e)) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "WAL responder dropped".to_string(),
+        )),
+    }
+}
+
+/// Handler for OpenSearch compatible bulk ingestion
+#[utoipa::path(
+    post,
+    path = "/_bulk",
+    responses(
+        (status = 200, description = "Bulk documents ingested successfully", body = Object),
+        (status = 500, description = "Failed to write to WAL")
+    )
+)]
+pub async fn bulk_handler(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
+    // For M1, we accept the raw bulk body, assume a generic index like "default",
+    // and write the entire payload. In M2 we'll parse the NDJSON properly.
+    let index = "default".to_string();
+
+    let (tx, rx) = oneshot::channel();
+
+    let req = WalRequest {
+        event: IngestEvent {
+            index: index.clone(),
+            payload: body.to_vec(),
+        },
+        responder: tx,
+    };
+
+    if state.wal_sender.send(req).await.is_err() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "WAL channel closed".to_string(),
+        ));
+    }
+
+    match rx.await {
+        Ok(Ok(_)) => {
+            Ok((
+                StatusCode::OK,
+                Json(json!({
+                    "took": 1,
+                    "errors": false,
+                    "items": [] // Simplified for M1
+                })),
+            ))
+        }
+        Ok(Err(e)) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "WAL responder dropped".to_string(),
+        )),
+    }
+}
+
 // Generate the OpenAPI schema from the handlers and structs
 #[derive(OpenApi)]
 #[openapi(
-    paths(root_handler, health_handler, stats_handler),
+    paths(
+        root_handler,
+        health_handler,
+        stats_handler,
+        ingest_doc_handler,
+        bulk_handler
+    ),
     components(schemas(
         HealthResponse,
         StatsResponse,
@@ -144,10 +273,13 @@ pub async fn stats_handler() -> Json<StatsResponse> {
 )]
 pub struct ApiDoc;
 
-pub fn app_router() -> Router {
+pub fn app_router(state: AppState) -> Router {
     Router::new()
         .route("/", get(root_handler))
         .route("/_health", get(health_handler))
         .route("/_cluster/health", get(health_handler)) // OpenSearch alias
         .route("/_stats", get(stats_handler))
+        .route("/_bulk", post(bulk_handler))
+        .route("/:index/_doc", post(ingest_doc_handler))
+        .with_state(state)
 }

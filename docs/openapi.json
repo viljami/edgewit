@@ -30,6 +30,42 @@
         }
       }
     },
+    "/_bulk": {
+      "post": {
+        "tags": [
+          "crate"
+        ],
+        "summary": "Handler for OpenSearch compatible bulk ingestion",
+        "operationId": "bulk_handler",
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk documents ingested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to write to WAL"
+          }
+        }
+      }
+    },
     "/_health": {
       "get": {
         "tags": [
@@ -68,6 +104,53 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/{index}/_doc": {
+      "post": {
+        "tags": [
+          "crate"
+        ],
+        "summary": "Handler for ingesting a single document",
+        "operationId": "ingest_doc_handler",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "description": "Index name to ingest into",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document ingested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to write to WAL"
           }
         }
       }
