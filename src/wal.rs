@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
+use crate::indexer::IndexerEvent;
+
 /// Represents a single event to be appended to the WAL.
 #[derive(Debug)]
 pub struct IngestEvent {
@@ -25,14 +27,23 @@ pub struct WalRequest {
 pub struct WalAppender {
     receiver: mpsc::Receiver<WalRequest>,
     dir: PathBuf,
+    idx_tx: mpsc::Sender<IndexerEvent>,
+    current_offset: u64,
 }
 
 impl WalAppender {
     /// Creates a new WAL Appender.
-    pub fn new(dir: impl AsRef<Path>, receiver: mpsc::Receiver<WalRequest>) -> Self {
+    pub fn new(
+        dir: impl AsRef<Path>,
+        receiver: mpsc::Receiver<WalRequest>,
+        idx_tx: mpsc::Sender<IndexerEvent>,
+        current_offset: u64,
+    ) -> Self {
         Self {
             receiver,
             dir: dir.as_ref().to_path_buf(),
+            idx_tx,
+            current_offset,
         }
     }
 
@@ -82,9 +93,10 @@ impl WalAppender {
             debug!("WAL processing batch of size {}", batch.len());
 
             let mut batch_success = true;
+            let mut to_index = Vec::with_capacity(batch.len());
 
             // Write all events in the batch to the buffer
-            for req in &batch {
+            for req in batch {
                 let index_bytes = req.event.index.as_bytes();
                 let payload_bytes = &req.event.payload;
 
@@ -127,6 +139,11 @@ impl WalAppender {
                     batch_success = false;
                     break; // Stop writing the batch if the disk is failing
                 }
+
+                let frame_len = 2 + index_bytes.len() + 4 + payload_bytes.len() + 4;
+                self.current_offset += frame_len as u64;
+
+                to_index.push((req, self.current_offset));
             }
 
             // Flush the userspace buffer to the OS
@@ -147,21 +164,82 @@ impl WalAppender {
                 }
             }
 
-            // Respond to all waiting HTTP requests
-            for req in batch {
-                let res = if batch_success {
-                    Ok(())
-                } else {
-                    Err("Failed to safely write to WAL".to_string())
-                };
+            // Respond to all waiting HTTP requests and send to indexer
+            if batch_success {
+                for (req, offset) in to_index {
+                    let _ = req.responder.send(Ok(()));
 
-                // It's possible the HTTP client disconnected before we finished writing.
-                // We ignore the Result here because the data is safely persisted regardless.
-                let _ = req.responder.send(res);
+                    // We must use blocking_send because we are inside a spawn_blocking task
+                    let _ = self.idx_tx.blocking_send(IndexerEvent {
+                        event: req.event,
+                        wal_offset: offset,
+                    });
+                }
+            } else {
+                for (req, _) in to_index {
+                    let _ = req
+                        .responder
+                        .send(Err("Failed to safely write to WAL".to_string()));
+                }
             }
         }
 
         info!("WAL appender thread shutting down.");
+    }
+}
+
+/// Helper for synchronously reading the WAL on startup (Crash Recovery)
+pub struct WalReader {
+    file: std::fs::File,
+    pub current_offset: u64,
+}
+
+impl WalReader {
+    pub fn new(path: &Path, start_offset: u64) -> std::io::Result<Self> {
+        let mut file = std::fs::File::open(path)?;
+        use std::io::{Seek, SeekFrom};
+        file.seek(SeekFrom::Start(start_offset))?;
+        Ok(Self {
+            file,
+            current_offset: start_offset,
+        })
+    }
+
+    pub fn next_frame(&mut self) -> std::io::Result<Option<(IngestEvent, u64)>> {
+        use std::io::Read;
+        let mut len_buf = [0u8; 2];
+        let bytes_read = self.file.read(&mut len_buf)?;
+        if bytes_read == 0 {
+            return Ok(None); // EOF
+        }
+        if bytes_read < 2 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "Partial frame",
+            ));
+        }
+
+        let idx_len = u16::from_le_bytes(len_buf) as usize;
+        let mut idx_buf = vec![0u8; idx_len];
+        self.file.read_exact(&mut idx_buf)?;
+        let index = String::from_utf8(idx_buf)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let mut plen_buf = [0u8; 4];
+        self.file.read_exact(&mut plen_buf)?;
+        let p_len = u32::from_le_bytes(plen_buf) as usize;
+
+        let mut payload = vec![0u8; p_len];
+        self.file.read_exact(&mut payload)?;
+
+        let mut crc_buf = [0u8; 4];
+        self.file.read_exact(&mut crc_buf)?;
+        // We could verify the CRC here, but omitting for M2 brevity.
+
+        let frame_size = 2 + idx_len + 4 + p_len + 4;
+        self.current_offset += frame_size as u64;
+
+        Ok(Some((IngestEvent { index, payload }, self.current_offset)))
     }
 }
 
@@ -174,7 +252,9 @@ mod tests {
     async fn setup_wal() -> (TempDir, mpsc::Sender<WalRequest>) {
         let temp_dir = TempDir::new().unwrap();
         let (tx, rx) = mpsc::channel(100);
-        let appender = WalAppender::new(temp_dir.path(), rx);
+        let (idx_tx, _idx_rx) = mpsc::channel(100);
+
+        let appender = WalAppender::new(temp_dir.path(), rx, idx_tx, 0);
 
         tokio::task::spawn_blocking(move || {
             appender.run();

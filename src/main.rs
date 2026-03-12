@@ -24,12 +24,68 @@ async fn main() {
         .parse()
         .expect("EDGEWIT_PORT must be a valid u16 port number");
 
-    // Initialize the WAL channel and appender thread
-    let (wal_tx, wal_rx) = mpsc::channel(10000); // Buffer up to 10k requests in memory
     let data_dir_str = env::var("EDGEWIT_DATA_DIR").unwrap_or_else(|_| "./data".to_string());
     let data_dir = PathBuf::from(data_dir_str);
 
-    let wal_appender = WalAppender::new(data_dir, wal_rx);
+    // 1. Setup Tantivy Index
+    let index = edgewit::indexer::setup_index(&data_dir).expect("Failed to setup Tantivy index");
+    let mut writer = index
+        .writer(30_000_000)
+        .expect("Failed to create IndexWriter");
+
+    // 2. Read WAL offset from the last Tantivy commit
+    let metas = index.load_metas().unwrap();
+    let last_offset: u64 = metas
+        .payload
+        .as_ref()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(0);
+
+    info!("Index loaded. Last committed WAL offset: {}", last_offset);
+
+    // 3. Synchronously Replay the WAL on Startup (Crash Recovery)
+    let wal_path = data_dir.join("00000001.wal");
+    let mut current_offset = last_offset;
+
+    if wal_path.exists() {
+        info!("Replaying WAL from offset {}...", last_offset);
+        let mut reader = edgewit::wal::WalReader::new(&wal_path, last_offset)
+            .expect("Failed to open WAL for replay");
+        let mut replayed = 0;
+
+        while let Some((event, next_offset)) = reader.next_frame().unwrap() {
+            if let Err(e) = edgewit::indexer::add_to_index(&mut writer, &index.schema(), event) {
+                tracing::error!("Failed to replay document: {}", e);
+            }
+            current_offset = next_offset;
+            replayed += 1;
+        }
+
+        if replayed > 0 {
+            info!(
+                "Replayed {} events. Committing segment at offset {}.",
+                replayed, current_offset
+            );
+            let mut commit = writer.prepare_commit().unwrap();
+            commit.set_payload(&current_offset.to_string());
+            commit.commit().unwrap();
+        } else {
+            info!("No new events to replay from WAL.");
+        }
+    }
+
+    // 4. Initialize Channels
+    let (wal_tx, wal_rx) = mpsc::channel(10000); // Buffer up to 10k requests in memory
+    let (idx_tx, idx_rx) = mpsc::channel(10000);
+
+    // 5. Spawn the Indexer Thread
+    let indexer = edgewit::indexer::IndexerActor::new(writer, index.schema(), idx_rx);
+    tokio::spawn(async move {
+        indexer.run().await;
+    });
+
+    // 6. Spawn the WAL Thread
+    let wal_appender = WalAppender::new(data_dir, wal_rx, idx_tx, current_offset);
     tokio::task::spawn_blocking(move || {
         wal_appender.run();
     });
