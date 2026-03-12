@@ -56,9 +56,11 @@ impl WalAppender {
             return;
         }
 
-        // For M1, we use a single hardcoded WAL file. In future milestones (M5),
-        // we will implement file rotation and segment compaction.
-        let wal_path = self.dir.join("00000001.wal");
+        let mut current_file_start_offset = self.current_offset;
+        let mut wal_path = self
+            .dir
+            .join(format!("{:016x}.wal", current_file_start_offset));
+
         let file = match OpenOptions::new().create(true).append(true).open(&wal_path) {
             Ok(f) => f,
             Err(e) => {
@@ -66,6 +68,8 @@ impl WalAppender {
                 return;
             }
         };
+
+        let mut current_file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
 
         // We use a small buffer. Since we explicitly flush and sync_data() at the end
         // of every batch, this just helps reduce syscall overhead during the batch write.
@@ -142,6 +146,7 @@ impl WalAppender {
 
                 let frame_len = 2 + index_bytes.len() + 4 + payload_bytes.len() + 4;
                 self.current_offset += frame_len as u64;
+                current_file_size += frame_len as u64;
 
                 to_index.push((req, self.current_offset));
             }
@@ -161,6 +166,28 @@ impl WalAppender {
                 if let Err(e) = writer.get_ref().sync_data() {
                     error!("WAL sync_data error: {}", e);
                     batch_success = false;
+                }
+            }
+
+            // Rotate the WAL file if it gets too large (e.g., > 32 MB)
+            if batch_success && current_file_size >= 32 * 1024 * 1024 {
+                info!("Rotating WAL file at offset {}", self.current_offset);
+                let _ = writer.flush();
+                let _ = writer.get_ref().sync_data();
+
+                current_file_start_offset = self.current_offset;
+                wal_path = self
+                    .dir
+                    .join(format!("{:016x}.wal", current_file_start_offset));
+
+                match OpenOptions::new().create(true).append(true).open(&wal_path) {
+                    Ok(new_file) => {
+                        writer = BufWriter::with_capacity(64 * 1024, new_file);
+                        current_file_size = 0;
+                    }
+                    Err(e) => {
+                        error!("Failed to rotate WAL file: {}", e);
+                    }
                 }
             }
 
@@ -315,7 +342,7 @@ mod tests {
         rrx2.await.unwrap().unwrap();
 
         // Open the raw file to verify the binary framing
-        let file_path = dir.path().join("00000001.wal");
+        let file_path = dir.path().join("0000000000000000.wal");
         let mut file = std::fs::File::open(file_path).expect("File must exist");
 
         // Helper closure to read a single frame

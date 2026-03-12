@@ -44,34 +44,65 @@ async fn main() {
     info!("Index loaded. Last committed WAL offset: {}", last_offset);
 
     // 3. Synchronously Replay the WAL on Startup (Crash Recovery)
-    let wal_path = data_dir.join("00000001.wal");
     let mut current_offset = last_offset;
 
-    if wal_path.exists() {
-        info!("Replaying WAL from offset {}...", last_offset);
-        let mut reader = edgewit::wal::WalReader::new(&wal_path, last_offset)
-            .expect("Failed to open WAL for replay");
-        let mut replayed = 0;
-
-        while let Some((event, next_offset)) = reader.next_frame().unwrap() {
-            if let Err(e) = edgewit::indexer::add_to_index(&mut writer, &index.schema(), event) {
-                tracing::error!("Failed to replay document: {}", e);
+    let mut wal_files = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&data_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("wal") {
+                if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    if let Ok(start_offset) = u64::from_str_radix(file_stem, 16) {
+                        wal_files.push((start_offset, path, entry.metadata().unwrap().len()));
+                    }
+                }
             }
-            current_offset = next_offset;
-            replayed += 1;
         }
+    }
 
-        if replayed > 0 {
+    wal_files.sort_by_key(|(offset, _, _)| *offset);
+
+    let mut replayed = 0;
+
+    for (start_offset, wal_path, size) in wal_files {
+        let end_offset = start_offset + size;
+        if end_offset > current_offset {
+            let read_start_file_offset = if current_offset > start_offset {
+                current_offset - start_offset
+            } else {
+                0
+            };
+
             info!(
-                "Replayed {} events. Committing segment at offset {}.",
-                replayed, current_offset
+                "Replaying WAL file {:?} from file offset {}...",
+                wal_path, read_start_file_offset
             );
-            let mut commit = writer.prepare_commit().unwrap();
-            commit.set_payload(&current_offset.to_string());
-            commit.commit().unwrap();
-        } else {
-            info!("No new events to replay from WAL.");
+            if let Ok(mut reader) = edgewit::wal::WalReader::new(&wal_path, read_start_file_offset)
+            {
+                reader.current_offset = current_offset;
+                while let Ok(Some((event, next_offset))) = reader.next_frame() {
+                    if let Err(e) =
+                        edgewit::indexer::add_to_index(&mut writer, &index.schema(), event)
+                    {
+                        tracing::error!("Failed to replay document: {}", e);
+                    }
+                    current_offset = next_offset;
+                    replayed += 1;
+                }
+            }
         }
+    }
+
+    if replayed > 0 {
+        info!(
+            "Replayed {} events. Committing segment at offset {}.",
+            replayed, current_offset
+        );
+        let mut commit = writer.prepare_commit().unwrap();
+        commit.set_payload(&current_offset.to_string());
+        commit.commit().unwrap();
+    } else {
+        info!("No new events to replay from WAL.");
     }
 
     // 4. Initialize Channels
@@ -85,9 +116,22 @@ async fn main() {
     });
 
     // 6. Spawn the WAL Thread
-    let wal_appender = WalAppender::new(data_dir, wal_rx, idx_tx, current_offset);
+    let wal_appender = WalAppender::new(data_dir.clone(), wal_rx, idx_tx, current_offset);
     tokio::task::spawn_blocking(move || {
         wal_appender.run();
+    });
+
+    // 7. Spawn Retention Worker
+    let retention_config = edgewit::retention::RetentionConfig::from_env();
+    let retention_index = index.clone();
+    let retention_data_dir = data_dir.clone();
+    tokio::spawn(async move {
+        edgewit::retention::run_compaction_and_retention_worker(
+            retention_data_dir,
+            retention_index,
+            retention_config,
+        )
+        .await;
     });
 
     let index_reader = index.reader().expect("Failed to create reader");
