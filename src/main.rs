@@ -44,6 +44,16 @@ async fn main() {
         .parse()
         .expect("EDGEWIT_SEARCH_THREADS must be a valid usize");
 
+    let docstore_cache_blocks: usize = env::var("EDGEWIT_DOCSTORE_CACHE_BLOCKS")
+        .unwrap_or_else(|_| "20".to_string())
+        .parse()
+        .expect("EDGEWIT_DOCSTORE_CACHE_BLOCKS must be a valid usize");
+
+    let merge_min_segments: usize = env::var("EDGEWIT_MERGE_MIN_SEGMENTS")
+        .unwrap_or_else(|_| "10".to_string())
+        .parse()
+        .expect("EDGEWIT_MERGE_MIN_SEGMENTS must be a valid usize");
+
     rayon::ThreadPoolBuilder::new()
         .num_threads(search_threads)
         .build_global()
@@ -54,6 +64,10 @@ async fn main() {
     let mut writer = index
         .writer(index_memory_mb * 1_000_000)
         .expect("Failed to create IndexWriter");
+
+    let mut merge_policy = tantivy::merge_policy::LogMergePolicy::default();
+    merge_policy.set_min_num_segments(merge_min_segments);
+    writer.set_merge_policy(Box::new(merge_policy));
 
     // 2. Read WAL offset from the last Tantivy commit
     let metas = index.load_metas().unwrap();
@@ -158,10 +172,14 @@ async fn main() {
 
     let index_reader = index
         .reader_builder()
+        .doc_store_cache_num_blocks(docstore_cache_blocks)
         .try_into()
         .expect("Failed to create reader");
 
-    info!("Search engine configured with {} threads", search_threads);
+    info!(
+        "Search engine configured with {} threads and {} cache blocks",
+        search_threads, docstore_cache_blocks
+    );
 
     let state = AppState {
         wal_sender: wal_tx,

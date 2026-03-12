@@ -66,15 +66,19 @@ curl -X GET "http://localhost:9200/_search?q=_source.message:booted"
 
 Edgewit is designed to be configured entirely via environment variables, adhering to the 12-factor app methodology. This makes it incredibly easy to manage within container orchestrators.
 
-| Environment Variable      | Default Value | Description                                                                                                                                 |
-| :------------------------ | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------ |
-| `EDGEWIT_PORT`            | `9200`        | The port the HTTP API binds to.                                                                                                             |
-| `EDGEWIT_DATA_DIR`        | `./data`      | Directory where Tantivy segments and WAL files are stored.                                                                                  |
-| `EDGEWIT_MAX_INDEX_BYTES` | `1GB`         | Maximum disk size for the searchable index. Exceeding this triggers retention pruning. Supports human-readable suffixes (`KB`, `MB`, `GB`). |
-| `EDGEWIT_MAX_WAL_BYTES`   | `512MB`       | Maximum disk size for uncommitted WAL files. Exceeding this triggers emergency WAL pruning to prevent disk exhaustion. Supports suffixes.   |
-| `EDGEWIT_INDEX_MEMORY_MB` | `30`          | Memory budget in MB for the Tantivy IndexWriter. Lower values limit RAM usage but may trigger more frequent disk commits.                   |
-| `EDGEWIT_CHANNEL_BUFFER`  | `10000`       | Number of events to buffer in memory channels before blocking ingestion.                                                                    |
-| `EDGEWIT_SEARCH_THREADS`  | `1`           | Number of Rayon threads allocated for resolving search queries. Lower values prevent CPU starvation on embedded multi-core chips.           |
+| Environment Variable            | Default Value | Description                                                                                                                                 |
+| :------------------------------ | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EDGEWIT_PORT`                  | `9200`        | The port the HTTP API binds to.                                                                                                             |
+| `EDGEWIT_DATA_DIR`              | `./data`      | Directory where Tantivy segments and WAL files are stored.                                                                                  |
+| `EDGEWIT_MAX_INDEX_BYTES`       | `1GB`         | Maximum disk size for the searchable index. Exceeding this triggers retention pruning. Supports human-readable suffixes (`KB`, `MB`, `GB`). |
+| `EDGEWIT_MAX_WAL_BYTES`         | `512MB`       | Maximum disk size for uncommitted WAL files. Exceeding this triggers emergency WAL pruning to prevent disk exhaustion. Supports suffixes.   |
+| `EDGEWIT_INDEX_MEMORY_MB`       | `30`          | Memory budget in MB for the Tantivy IndexWriter. Lower values limit RAM usage but may trigger more frequent disk commits.                   |
+| `EDGEWIT_CHANNEL_BUFFER`        | `10000`       | Number of events to buffer in memory channels before blocking ingestion.                                                                    |
+| `EDGEWIT_SEARCH_THREADS`        | `1`           | Number of Rayon threads allocated for resolving search queries. Lower values prevent CPU starvation on embedded multi-core chips.           |
+| `EDGEWIT_DOCSTORE_CACHE_BLOCKS` | `20`          | Number of uncompressed document blocks to keep in RAM during search operations. Lower values limit memory overhead.                         |
+| `EDGEWIT_MERGE_MIN_SEGMENTS`    | `10`          | Minimum number of segments required before triggering a background compaction. Higher values reduce write amplification.                    |
+| `EDGEWIT_COMMIT_INTERVAL_SECS`  | `5`           | Time interval constraint for the background indexer's adaptive batching.                                                                    |
+| `EDGEWIT_COMMIT_INTERVAL_DOCS`  | `10000`       | Document limit constraint for the background indexer's adaptive batching.                                                                   |
 
 ## API Documentation
 

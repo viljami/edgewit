@@ -269,6 +269,48 @@ cargo run --release</code></pre>
                             on embedded multi-core chips.
                         </td>
                     </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_DOCSTORE_CACHE_BLOCKS</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>20</code></td>
+                        <td style="padding: 0.5rem">
+                            Number of uncompressed document blocks to keep in
+                            RAM during search operations. Lower values limit
+                            memory overhead.
+                        </td>
+                    </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_MERGE_MIN_SEGMENTS</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>10</code></td>
+                        <td style="padding: 0.5rem">
+                            Minimum number of segments required before
+                            triggering a background compaction. Higher values
+                            reduce write amplification.
+                        </td>
+                    </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_COMMIT_INTERVAL_SECS</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>5</code></td>
+                        <td style="padding: 0.5rem">
+                            Time interval constraint for the background
+                            indexer's adaptive batching.
+                        </td>
+                    </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_COMMIT_INTERVAL_DOCS</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>10000</code></td>
+                        <td style="padding: 0.5rem">
+                            Document limit constraint for the background
+                            indexer's adaptive batching.
+                        </td>
+                    </tr>
                 </table>
             </section>
 

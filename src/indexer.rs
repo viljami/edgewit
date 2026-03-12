@@ -99,11 +99,23 @@ impl IndexerActor {
     /// Starts the asynchronous indexing loop.
     /// This should be spawned as a Tokio task.
     pub async fn run(mut self) {
-        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        let commit_interval_secs: u64 = std::env::var("EDGEWIT_COMMIT_INTERVAL_SECS")
+            .unwrap_or_else(|_| "5".to_string())
+            .parse()
+            .unwrap_or(5);
+        let commit_interval_docs: usize = std::env::var("EDGEWIT_COMMIT_INTERVAL_DOCS")
+            .unwrap_or_else(|_| "10000".to_string())
+            .parse()
+            .unwrap_or(10_000);
+
+        let mut interval = tokio::time::interval(Duration::from_secs(commit_interval_secs));
         let mut docs_since_commit = 0;
         let mut latest_wal_offset = 0;
 
-        info!("Indexer thread started.");
+        info!(
+            "Indexer thread started with {}s / {} docs commit interval.",
+            commit_interval_secs, commit_interval_docs
+        );
 
         loop {
             tokio::select! {
@@ -116,13 +128,13 @@ impl IndexerActor {
                         docs_since_commit += 1;
                     }
 
-                    // Adaptive batching constraint: flush segments when we reach 10,000 docs
-                    if docs_since_commit >= 10_000 {
+                    // Adaptive batching constraint: flush segments when we reach configured limit
+                    if docs_since_commit >= commit_interval_docs {
                         self.commit_segment(latest_wal_offset);
                         docs_since_commit = 0;
                     }
                 }
-                // Time constraint: flush segments if it's been 5 seconds and we have uncommitted data
+                // Time constraint: flush segments if the time interval elapses and we have uncommitted data
                 _ = interval.tick() => {
                     if docs_since_commit > 0 {
                         self.commit_segment(latest_wal_offset);
