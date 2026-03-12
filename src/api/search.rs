@@ -6,6 +6,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tantivy::{
     Document, IndexReader,
+    aggregation::AggregationCollector,
+    aggregation::agg_req::Aggregations,
+    aggregation::agg_result::AggregationResults,
     collector::{Count, TopDocs},
     query::QueryParser,
 };
@@ -27,6 +30,7 @@ pub struct SearchRequestBody {
     pub from: Option<usize>,
     pub size: Option<usize>,
     pub sort: Option<serde_json::Value>,
+    pub aggs: Option<Aggregations>,
 }
 
 #[derive(Serialize, Debug)]
@@ -35,6 +39,8 @@ pub struct SearchResponse {
     pub timed_out: bool,
     pub _shards: ShardsInfo,
     pub hits: HitsInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aggregations: Option<AggregationResults>,
 }
 
 #[derive(Serialize, Debug)]
@@ -65,6 +71,7 @@ fn execute_search(
     target_index: Option<&str>,
     from: usize,
     size: usize,
+    aggs: Option<Aggregations>,
 ) -> Result<SearchResponse, String> {
     let _ = reader.reload();
     let searcher = reader.searcher();
@@ -97,55 +104,77 @@ fn execute_search(
 
     let start = std::time::Instant::now();
 
-    // We collect the total count and the top-K documents
-    let (total_docs, top_docs) = searcher
-        .search(&query, &(Count, TopDocs::with_limit(size).and_offset(from)))
-        .map_err(|e| format!("Search error: {}", e))?;
+    // We collect the total count and the top-K documents, and optionally aggregations
+    let limit = if size == 0 { 1 } else { size };
+    let (total_docs, top_docs, extracted_aggs) = if let Some(aggs_req) = aggs {
+        let agg_collector = AggregationCollector::from_aggs(aggs_req, Default::default());
+        let (total_docs, top_docs, aggs_res) = searcher
+            .search(
+                &query,
+                &(
+                    Count,
+                    TopDocs::with_limit(limit).and_offset(from),
+                    agg_collector,
+                ),
+            )
+            .map_err(|e| format!("Search error: {}", e))?;
+        (total_docs, top_docs, Some(aggs_res))
+    } else {
+        let (total_docs, top_docs) = searcher
+            .search(
+                &query,
+                &(Count, TopDocs::with_limit(limit).and_offset(from)),
+            )
+            .map_err(|e| format!("Search error: {}", e))?;
+        (total_docs, top_docs, None)
+    };
 
     let took = start.elapsed().as_millis() as u64;
 
     let mut hits = Vec::new();
     let mut max_score = None;
 
-    for (score, doc_address) in top_docs {
-        if max_score.is_none() {
-            max_score = Some(score);
-        }
-
-        let retrieved_doc: tantivy::TantivyDocument = searcher
-            .doc(doc_address)
-            .map_err(|e| format!("Failed to retrieve doc: {}", e))?;
-
-        let doc_json_str = retrieved_doc.to_json(&schema);
-        let mut source_json = serde_json::Value::Null;
-        let mut index_name = "unknown".to_string();
-
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&doc_json_str) {
-            if let Some(arr) = parsed.get("_source").and_then(|v| v.as_array()) {
-                if !arr.is_empty() {
-                    source_json = arr[0].clone();
-                }
-            } else if let Some(val) = parsed.get("_source") {
-                source_json = val.clone();
+    if size > 0 {
+        for (score, doc_address) in top_docs {
+            if max_score.is_none() {
+                max_score = Some(score);
             }
 
-            if let Some(arr) = parsed.get("_index").and_then(|v| v.as_array()) {
-                if !arr.is_empty() {
-                    if let Some(s) = arr[0].as_str() {
-                        index_name = s.to_string();
+            let retrieved_doc: tantivy::TantivyDocument = searcher
+                .doc(doc_address)
+                .map_err(|e| format!("Failed to retrieve doc: {}", e))?;
+
+            let doc_json_str = retrieved_doc.to_json(&schema);
+            let mut source_json = serde_json::Value::Null;
+            let mut index_name = "unknown".to_string();
+
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&doc_json_str) {
+                if let Some(arr) = parsed.get("_source").and_then(|v| v.as_array()) {
+                    if !arr.is_empty() {
+                        source_json = arr[0].clone();
                     }
+                } else if let Some(val) = parsed.get("_source") {
+                    source_json = val.clone();
                 }
-            } else if let Some(val) = parsed.get("_index").and_then(|v| v.as_str()) {
-                index_name = val.to_string();
-            }
-        }
 
-        hits.push(Hit {
-            _index: index_name,
-            _id: format!("{}-{}", doc_address.segment_ord, doc_address.doc_id), // Synthetic ID
-            _score: Some(score),
-            _source: source_json,
-        });
+                if let Some(arr) = parsed.get("_index").and_then(|v| v.as_array()) {
+                    if !arr.is_empty() {
+                        if let Some(s) = arr[0].as_str() {
+                            index_name = s.to_string();
+                        }
+                    }
+                } else if let Some(val) = parsed.get("_index").and_then(|v| v.as_str()) {
+                    index_name = val.to_string();
+                }
+            }
+
+            hits.push(Hit {
+                _index: index_name,
+                _id: format!("{}-{}", doc_address.segment_ord, doc_address.doc_id), // Synthetic ID
+                _score: Some(score),
+                _source: source_json,
+            });
+        }
     }
 
     Ok(SearchResponse {
@@ -165,6 +194,7 @@ fn execute_search(
             max_score,
             hits,
         },
+        aggregations: extracted_aggs,
     })
 }
 
@@ -217,9 +247,10 @@ pub async fn global_search_handler(
         .or_else(|| body.as_ref().and_then(|b| b.size))
         .unwrap_or(10);
 
+    let aggs = body.as_ref().and_then(|b| b.aggs.clone());
     let reader = state.index_reader.clone(); // Assumes index_reader is added to AppState
 
-    match execute_search(&reader, &query_str, None, from, size) {
+    match execute_search(&reader, &query_str, None, from, size, aggs) {
         Ok(resp) => axum::response::Json(resp).into_response(),
         Err(e) => {
             error!("Search failed: {}", e);
@@ -257,9 +288,10 @@ pub async fn index_search_handler(
         .or_else(|| body.as_ref().and_then(|b| b.size))
         .unwrap_or(10);
 
+    let aggs = body.as_ref().and_then(|b| b.aggs.clone());
     let reader = state.index_reader.clone();
 
-    match execute_search(&reader, &query_str, Some(&index), from, size) {
+    match execute_search(&reader, &query_str, Some(&index), from, size, aggs) {
         Ok(resp) => axum::response::Json(resp).into_response(),
         Err(e) => {
             error!("Search failed for index {}: {}", index, e);
@@ -274,7 +306,6 @@ pub async fn index_search_handler(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::api::{AppState, app_router};
     use crate::indexer::build_schema;
     use axum_test::TestServer;
@@ -343,5 +374,31 @@ mod tests {
         response.assert_status_ok();
         let json = response.json::<serde_json::Value>();
         assert_eq!(json["hits"]["total"]["value"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_search_aggregations() {
+        let server = setup_test_server();
+
+        let req_body = serde_json::json!({
+            "size": 0,
+            "aggs": {
+                "messages": {
+                    "terms": {
+                        "field": "_source.message"
+                    }
+                }
+            }
+        });
+
+        let response = server.get("/_search").json(&req_body).await;
+
+        response.assert_status_ok();
+
+        let json = response.json::<serde_json::Value>();
+        assert!(
+            json.get("aggregations").is_some(),
+            "Aggregations should be present in the response"
+        );
     }
 }

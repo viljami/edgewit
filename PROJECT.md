@@ -184,7 +184,7 @@ deliverables:
 success criteria:
 sub-second search over millions of documents on Pi
 
-M4 AGGREGATION ENGINE
+M4 AGGREGATION ENGINE [DONE]
 goal:
 support analytical queries locally
 
