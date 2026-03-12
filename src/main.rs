@@ -27,10 +27,32 @@ async fn main() {
     let data_dir_str = env::var("EDGEWIT_DATA_DIR").unwrap_or_else(|_| "./data".to_string());
     let data_dir = PathBuf::from(data_dir_str);
 
+    let index_memory_mb: usize = env::var("EDGEWIT_INDEX_MEMORY_MB")
+        .unwrap_or_else(|_| "30".to_string())
+        .parse()
+        .expect("EDGEWIT_INDEX_MEMORY_MB must be a valid usize");
+
+    info!("Using {}MB memory budget for indexing", index_memory_mb);
+
+    let channel_buffer: usize = env::var("EDGEWIT_CHANNEL_BUFFER")
+        .unwrap_or_else(|_| "10000".to_string())
+        .parse()
+        .expect("EDGEWIT_CHANNEL_BUFFER must be a valid usize");
+
+    let search_threads: usize = env::var("EDGEWIT_SEARCH_THREADS")
+        .unwrap_or_else(|_| "1".to_string())
+        .parse()
+        .expect("EDGEWIT_SEARCH_THREADS must be a valid usize");
+
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(search_threads)
+        .build_global()
+        .expect("Failed to initialize rayon thread pool");
+
     // 1. Setup Tantivy Index
     let index = edgewit::indexer::setup_index(&data_dir).expect("Failed to setup Tantivy index");
     let mut writer = index
-        .writer(30_000_000)
+        .writer(index_memory_mb * 1_000_000)
         .expect("Failed to create IndexWriter");
 
     // 2. Read WAL offset from the last Tantivy commit
@@ -106,8 +128,8 @@ async fn main() {
     }
 
     // 4. Initialize Channels
-    let (wal_tx, wal_rx) = mpsc::channel(10000); // Buffer up to 10k requests in memory
-    let (idx_tx, idx_rx) = mpsc::channel(10000);
+    let (wal_tx, wal_rx) = mpsc::channel(channel_buffer); // Buffer configurable requests in memory
+    let (idx_tx, idx_rx) = mpsc::channel(channel_buffer);
 
     // 5. Spawn the Indexer Thread
     let indexer = edgewit::indexer::IndexerActor::new(writer, index.schema(), idx_rx);
@@ -134,7 +156,13 @@ async fn main() {
         .await;
     });
 
-    let index_reader = index.reader().expect("Failed to create reader");
+    let index_reader = index
+        .reader_builder()
+        .try_into()
+        .expect("Failed to create reader");
+
+    info!("Search engine configured with {} threads", search_threads);
+
     let state = AppState {
         wal_sender: wal_tx,
         index_reader,

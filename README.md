@@ -72,6 +72,9 @@ Edgewit is designed to be configured entirely via environment variables, adherin
 | `EDGEWIT_DATA_DIR`        | `./data`      | Directory where Tantivy segments and WAL files are stored.                                                                                  |
 | `EDGEWIT_MAX_INDEX_BYTES` | `1GB`         | Maximum disk size for the searchable index. Exceeding this triggers retention pruning. Supports human-readable suffixes (`KB`, `MB`, `GB`). |
 | `EDGEWIT_MAX_WAL_BYTES`   | `512MB`       | Maximum disk size for uncommitted WAL files. Exceeding this triggers emergency WAL pruning to prevent disk exhaustion. Supports suffixes.   |
+| `EDGEWIT_INDEX_MEMORY_MB` | `30`          | Memory budget in MB for the Tantivy IndexWriter. Lower values limit RAM usage but may trigger more frequent disk commits.                   |
+| `EDGEWIT_CHANNEL_BUFFER`  | `10000`       | Number of events to buffer in memory channels before blocking ingestion.                                                                    |
+| `EDGEWIT_SEARCH_THREADS`  | `1`           | Number of Rayon threads allocated for resolving search queries. Lower values prevent CPU starvation on embedded multi-core chips.           |
 
 ## API Documentation
 

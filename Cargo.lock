@@ -338,6 +338,7 @@ dependencies = [
  "bytes",
  "crc32fast",
  "insta",
+ "rayon",
  "rstest",
  "serde",
  "serde_json",

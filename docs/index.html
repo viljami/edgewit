@@ -237,6 +237,38 @@ cargo run --release</code></pre>
                             prevent OS disk exhaustion.
                         </td>
                     </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_INDEX_MEMORY_MB</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>30</code></td>
+                        <td style="padding: 0.5rem">
+                            Memory budget in MB for the Tantivy IndexWriter.
+                            Lower values limit RAM usage but may trigger more
+                            frequent disk commits.
+                        </td>
+                    </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_CHANNEL_BUFFER</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>10000</code></td>
+                        <td style="padding: 0.5rem">
+                            Number of events to buffer in memory channels before
+                            blocking ingestion.
+                        </td>
+                    </tr>
+                    <tr style="border-top: 1px solid #444">
+                        <td style="padding: 0.5rem">
+                            <code>EDGEWIT_SEARCH_THREADS</code>
+                        </td>
+                        <td style="padding: 0.5rem"><code>1</code></td>
+                        <td style="padding: 0.5rem">
+                            Number of Rayon threads allocated for resolving
+                            search queries. Lower values prevent CPU starvation
+                            on embedded multi-core chips.
+                        </td>
+                    </tr>
                 </table>
             </section>
 
