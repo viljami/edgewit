@@ -1,0 +1,219 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Edgewit API",
+    "description": "Lightweight, Rust-based search and analytics engine for edge environments.",
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "crate"
+        ],
+        "summary": "Handler for the root endpoint, emulating the default OpenSearch response",
+        "operationId": "root_handler",
+        "responses": {
+          "200": {
+            "description": "OpenSearch compatible greeting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/_health": {
+      "get": {
+        "tags": [
+          "crate"
+        ],
+        "summary": "Handler for the cluster health endpoint (/_health or /_cluster/health)",
+        "operationId": "health_handler",
+        "responses": {
+          "200": {
+            "description": "Cluster health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/_stats": {
+      "get": {
+        "tags": [
+          "crate"
+        ],
+        "summary": "Handler for the statistics endpoint (/_stats)",
+        "operationId": "stats_handler",
+        "responses": {
+          "200": {
+            "description": "Cluster and index statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DocsStats": {
+        "type": "object",
+        "required": [
+          "count",
+          "deleted"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "deleted": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "cluster_name",
+          "status",
+          "timed_out",
+          "number_of_nodes",
+          "active_primary_shards",
+          "active_shards"
+        ],
+        "properties": {
+          "active_primary_shards": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "active_shards": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "cluster_name": {
+            "type": "string"
+          },
+          "number_of_nodes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string"
+          },
+          "timed_out": {
+            "type": "boolean"
+          }
+        }
+      },
+      "IndexStats": {
+        "type": "object",
+        "required": [
+          "docs",
+          "store"
+        ],
+        "properties": {
+          "docs": {
+            "$ref": "#/components/schemas/DocsStats"
+          },
+          "store": {
+            "$ref": "#/components/schemas/StoreStats"
+          }
+        }
+      },
+      "IndicesStats": {
+        "type": "object",
+        "required": [
+          "primaries",
+          "total"
+        ],
+        "properties": {
+          "primaries": {
+            "$ref": "#/components/schemas/IndexStats"
+          },
+          "total": {
+            "$ref": "#/components/schemas/IndexStats"
+          }
+        }
+      },
+      "ShardsInfo": {
+        "type": "object",
+        "required": [
+          "total",
+          "successful",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "successful": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "required": [
+          "_shards",
+          "_all"
+        ],
+        "properties": {
+          "_all": {
+            "$ref": "#/components/schemas/IndicesStats"
+          },
+          "_shards": {
+            "$ref": "#/components/schemas/ShardsInfo"
+          }
+        }
+      },
+      "StoreStats": {
+        "type": "object",
+        "required": [
+          "size_in_bytes"
+        ],
+        "properties": {
+          "size_in_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

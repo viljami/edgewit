@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  edgewit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edgewit:local
+    container_name: edgewit
+    ports:
+      # Port 9200 to align with OpenSearch compatibility goal
+      - "9200:9200"
+    volumes:
+      # Persistent volume for Tantivy segments and WAL
+      - edgewit_data:/var/lib/edgewit
+    environment:
+      - RUST_LOG=info,edgewit=debug
+      - EDGEWIT_DATA_DIR=/var/lib/edgewit
+      - EDGEWIT_PORT=9200
+    restart: unless-stopped
+
+    # Optional: Simulate Raspberry Pi / edge constraints locally
+    # Uncomment the deploy block to enforce the memory targets from PROJECT.md
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 250M # Target is <150MB resident, giving slight overhead
+
+volumes:
+  edgewit_data:
+    driver: local

@@ -1,0 +1,55 @@
+name: Generate and Publish API Docs
+
+on:
+  push:
+    branches:
+      - main
+  # Allow manual triggering
+  workflow_dispatch:
+
+# Grant permissions needed for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Prevent parallel deployments
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy-docs:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "edgewit -> target"
+
+      - name: Generate OpenAPI Spec
+        # Runs the utility binary to dump the JSON to docs/openapi.json
+        working-directory: ./edgewit
+        run: cargo run --bin generate_openapi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository's docs folder
+          path: "./edgewit/docs"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
