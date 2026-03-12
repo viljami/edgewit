@@ -136,7 +136,7 @@ deliverables:
 success criteria:
 binary runs on raspberry pi and exposes health endpoint
 
-M1 INGESTION PIPELINE
+M1 INGESTION PIPELINE [DONE]
 goal:
 accept and persist events reliably
 
@@ -152,7 +152,7 @@ deliverables:
 success criteria:
 events safely persisted and recoverable after crash
 
-M2 INDEXING ENGINE
+M2 INDEXING ENGINE [DONE]
 goal:
 convert ingested events into searchable segments
 
