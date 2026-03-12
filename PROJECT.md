@@ -243,7 +243,7 @@ deliverables:
 success criteria:
 basic OpenSearch clients can query edgewit
 
-M8 OBSERVABILITY
+M8 OBSERVABILITY [DONE]
 goal:
 make system introspectable and debuggable
 

@@ -27,6 +27,9 @@ pub async fn ingest_doc_handler(
     Path(index): Path<String>,
     body: Bytes,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
+    metrics::counter!("edgewit_ingest_requests_total").increment(1);
+    metrics::counter!("edgewit_ingest_bytes_total").increment(body.len() as u64);
+
     let (tx, rx) = oneshot::channel();
 
     let req = WalRequest {
@@ -82,6 +85,9 @@ pub async fn bulk_handler(
     // and write the entire payload. In M2 we'll parse the NDJSON properly.
     let index = "default".to_string();
 
+    metrics::counter!("edgewit_ingest_requests_total").increment(1);
+    metrics::counter!("edgewit_ingest_bytes_total").increment(body.len() as u64);
+
     let (tx, rx) = oneshot::channel();
 
     let req = WalRequest {
@@ -131,6 +137,9 @@ mod tests {
         let state = AppState {
             wal_sender: tx,
             index_reader: index.reader().unwrap(),
+            prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
+                .build_recorder()
+                .handle(),
         };
         let app = app_router(state);
         let server = TestServer::new(app).unwrap();

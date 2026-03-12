@@ -130,6 +130,8 @@ fn execute_search(
     };
 
     let took = start.elapsed().as_millis() as u64;
+    metrics::histogram!("edgewit_search_latency_seconds").record(start.elapsed().as_secs_f64());
+    metrics::counter!("edgewit_search_requests_total").increment(1);
 
     let mut hits = Vec::new();
     let mut max_score = None;
@@ -378,6 +380,9 @@ mod tests {
         let state = AppState {
             wal_sender: tx,
             index_reader: index.reader().unwrap(),
+            prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
+                .build_recorder()
+                .handle(),
         };
 
         TestServer::new(app_router(state)).unwrap()

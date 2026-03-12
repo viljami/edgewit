@@ -12,6 +12,20 @@ pub use cluster::*;
 pub use ingest::*;
 pub use search::*;
 
+use axum::extract::State;
+use axum::response::IntoResponse;
+
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    responses(
+        (status = 200, description = "Prometheus compatible metrics", body = String)
+    )
+)]
+pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
+    state.prometheus_handle.render()
+}
+
 use crate::wal::WalRequest;
 use tantivy::IndexReader;
 
@@ -19,6 +33,7 @@ use tantivy::IndexReader;
 pub struct AppState {
     pub wal_sender: tokio::sync::mpsc::Sender<WalRequest>,
     pub index_reader: IndexReader,
+    pub prometheus_handle: metrics_exporter_prometheus::PrometheusHandle,
 }
 
 // Generate the OpenAPI schema from the handlers and structs
@@ -31,7 +46,8 @@ pub struct AppState {
         ingest::ingest_doc_handler,
         ingest::bulk_handler,
         search::global_search_handler,
-        search::index_search_handler
+        search::index_search_handler,
+        metrics_handler
     ),
     components(schemas(
         cluster::HealthResponse,
@@ -56,6 +72,7 @@ pub fn app_router(state: AppState) -> Router {
         .route("/_health", get(cluster::health_handler))
         .route("/_cluster/health", get(cluster::health_handler)) // OpenSearch alias
         .route("/_stats", get(cluster::stats_handler))
+        .route("/metrics", get(metrics_handler))
         .route("/_bulk", post(ingest::bulk_handler))
         .route("/:index/_doc", post(ingest::ingest_doc_handler))
         .route(

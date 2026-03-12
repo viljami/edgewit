@@ -1,3 +1,5 @@
+use crate::api::AppState;
+use axum::extract::State;
 use axum::response::Json;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -104,7 +106,14 @@ pub async fn health_handler() -> Json<HealthResponse> {
         (status = 200, description = "Cluster and index statistics", body = StatsResponse)
     )
 )]
-pub async fn stats_handler() -> Json<StatsResponse> {
+pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse> {
+    let searcher = state.index_reader.searcher();
+    let num_docs = searcher.num_docs();
+    let num_segments = searcher.segment_readers().len() as u32;
+
+    metrics::gauge!("edgewit_index_docs_total").set(num_docs as f64);
+    metrics::gauge!("edgewit_index_segments_total").set(num_segments as f64);
+
     Json(StatsResponse {
         _shards: ShardsInfo {
             total: 0,
@@ -115,14 +124,14 @@ pub async fn stats_handler() -> Json<StatsResponse> {
         _all: IndicesStats {
             primaries: IndexStats {
                 docs: DocsStats {
-                    count: 0,
+                    count: num_docs,
                     deleted: 0,
                 },
                 store: StoreStats { size_in_bytes: 0 },
             },
             total: IndexStats {
                 docs: DocsStats {
-                    count: 0,
+                    count: num_docs,
                     deleted: 0,
                 },
                 store: StoreStats { size_in_bytes: 0 },
@@ -146,6 +155,9 @@ mod tests {
         let state = AppState {
             wal_sender: tx,
             index_reader: index.reader().unwrap(),
+            prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
+                .build_recorder()
+                .handle(),
         };
         let app = app_router(state);
         TestServer::new(app).unwrap()

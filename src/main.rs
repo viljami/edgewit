@@ -181,7 +181,12 @@ async fn main() {
         search_threads, docstore_cache_blocks
     );
 
+    let prometheus_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install_recorder()
+        .expect("failed to install recorder");
+
     let state = AppState {
+        prometheus_handle,
         wal_sender: wal_tx,
         index_reader,
     };

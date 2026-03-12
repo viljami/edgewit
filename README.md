@@ -62,6 +62,23 @@ Once you've ingested some data, wait a few seconds for the background indexer to
 curl -X GET "http://localhost:9200/_search?q=_source.message:booted"
 ```
 
+## Monitoring & Observability
+
+Edgewit provides a built-in Prometheus-compatible metrics endpoint at `GET /metrics`. You can configure a Prometheus or OpenTelemetry scraper to periodically collect these stats.
+
+```bash
+curl http://localhost:9200/metrics
+```
+
+Available metrics include:
+- `edgewit_ingest_requests_total`
+- `edgewit_ingest_bytes_total`
+- `edgewit_search_requests_total`
+- `edgewit_search_latency_seconds`
+- `edgewit_index_docs_total`
+- `edgewit_index_segments_total`
+
+
 ## Configuration
 
 Edgewit is designed to be configured entirely via environment variables, adhering to the 12-factor app methodology. This makes it incredibly easy to manage within container orchestrators.
@@ -110,6 +127,9 @@ Edgewit is separated into specialized asynchronous actors to ensure peak HTTP pe
 - ✅ **M3 Search Engine:** Implement `/_search` with query parsing and sorting.
 - ✅ **M4 Aggregation Engine:** Analytical queries natively on the edge.
 - ✅ **M5 Segment Management:** Compaction, WAL rotation, and disk usage limits.
+- ✅ **M6 Edge Optimization:** Memory budgeting, search threads, cache tuning.
+- ✅ **M7 OpenSearch Compatibility:** OpenSearch compatible API mappings.
+- ✅ **M8 Observability:** Metrics endpoint and Prometheus compatibility.
 
 _(See `PROJECT.md` for a full breakdown of the project vision)._
 

@@ -138,6 +138,26 @@
         }
       }
     },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "crate"
+        ],
+        "operationId": "metrics_handler",
+        "responses": {
+          "200": {
+            "description": "Prometheus compatible metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{index}/_doc": {
       "post": {
         "tags": [
