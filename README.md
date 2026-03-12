@@ -50,6 +50,13 @@ curl -X POST http://localhost:9200/my-edge-logs/_doc \
   }'
 ```
 
+### Search Example
+Once you've ingested some data, wait a few seconds for the background indexer to commit the segment, then you can search for it using the `/_search` endpoint.
+
+```bash
+curl -X GET "http://localhost:9200/_search?q=_source.message:booted"
+```
+
 ## API Documentation
 The API documentation is generated directly from the source code using `utoipa` to guarantee absolute accuracy.
 
@@ -73,7 +80,7 @@ Edgewit is separated into specialized asynchronous actors to ensure peak HTTP pe
 * ✅ **M0 Project Foundation:** Runnable system, repository layout, container build.
 * ✅ **M1 Ingestion Pipeline:** Custom adaptive WAL, durable persistence, HTTP ingest APIs.
 * ✅ **M2 Indexing Engine:** Tantivy integration, dynamic JSON schema, WAL-replay on startup.
-* ⏳ **M3 Search Engine:** Implement `/_search` with query parsing and sorting.
+* ✅ **M3 Search Engine:** Implement `/_search` with query parsing and sorting.
 * ⏳ **M4 Aggregation Engine:** Analytical queries natively on the edge.
 * ⏳ **M5 Segment Management:** Compaction and disk usage limits.
 

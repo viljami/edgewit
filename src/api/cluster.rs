@@ -19,10 +19,11 @@ pub struct StatsResponse {
     pub _all: IndicesStats,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, Debug)]
 pub struct ShardsInfo {
     pub total: u32,
     pub successful: u32,
+    pub skipped: u32,
     pub failed: u32,
 }
 
@@ -102,6 +103,7 @@ pub async fn stats_handler() -> Json<StatsResponse> {
         _shards: ShardsInfo {
             total: 0,
             successful: 0,
+            skipped: 0,
             failed: 0,
         },
         _all: IndicesStats {
@@ -134,7 +136,11 @@ mod tests {
 
     fn setup_test_server() -> TestServer {
         let (tx, _rx) = mpsc::channel(100);
-        let state = AppState { wal_sender: tx };
+        let index = tantivy::Index::create_in_ram(crate::indexer::build_schema());
+        let state = AppState {
+            wal_sender: tx,
+            index_reader: index.reader().unwrap(),
+        };
         let app = app_router(state);
         TestServer::new(app).unwrap()
     }

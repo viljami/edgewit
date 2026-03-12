@@ -90,7 +90,11 @@ async fn main() {
         wal_appender.run();
     });
 
-    let state = AppState { wal_sender: wal_tx };
+    let index_reader = index.reader().expect("Failed to create reader");
+    let state = AppState {
+        wal_sender: wal_tx,
+        index_reader,
+    };
 
     // Bind to 0.0.0.0 to allow external access (essential for Docker)
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

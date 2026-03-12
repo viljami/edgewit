@@ -167,7 +167,7 @@ deliverables:
 success criteria:
 events become searchable after ingestion
 
-M3 SEARCH ENGINE
+M3 SEARCH ENGINE [DONE]
 goal:
 support OpenSearch-like search queries
 

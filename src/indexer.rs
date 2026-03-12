@@ -24,7 +24,7 @@ pub fn build_schema() -> Schema {
     builder.add_json_field("_source", json_options);
 
     // Explicitly track the index name so we can filter by `_index` in queries
-    builder.add_text_field("_index", tantivy::schema::STRING);
+    builder.add_text_field("_index", tantivy::schema::STRING | tantivy::schema::STORED);
 
     builder.build()
 }
