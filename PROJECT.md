@@ -199,7 +199,7 @@ deliverables:
 success criteria:
 aggregations work on indexed data with predictable latency
 
-M5 SEGMENT MANAGEMENT
+M5 SEGMENT MANAGEMENT [DONE]
 goal:
 maintain healthy index structure
 
