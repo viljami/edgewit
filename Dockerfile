@@ -1,5 +1,5 @@
 # ---- Builder Stage ----
-FROM rust:1.77-slim-bookworm AS builder
+FROM rust:slim-bookworm AS builder
 
 # Install build dependencies
 RUN apt-get update && \
@@ -11,8 +11,9 @@ WORKDIR /usr/src/edgewit
 # Create a dummy project to cache dependencies
 COPY Cargo.toml ./
 # Create a dummy src/main.rs to allow cargo to build the dependencies
-RUN mkdir src && \
+RUN mkdir -p src/bin && \
     echo "fn main() {}" > src/main.rs && \
+    echo "fn main() {}" > src/bin/generate_openapi.rs && \
     cargo build --release && \
     rm -rf src
 
