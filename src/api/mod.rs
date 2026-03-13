@@ -1,6 +1,7 @@
 pub mod cluster;
 pub mod ingest;
 pub mod search;
+pub mod auth;
 
 use axum::{
     Router,
@@ -83,5 +84,6 @@ pub fn app_router(state: AppState) -> Router {
             "/:index/_search",
             get(search::index_search_handler).post(search::index_search_handler),
         )
+        .route_layer(axum::middleware::from_fn(auth::auth_middleware))
         .with_state(state)
 }
