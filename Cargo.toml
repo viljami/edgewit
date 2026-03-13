@@ -32,6 +32,7 @@ tempfile = "3.10"
 axum-test = "16.0"
 rstest = "0.21"
 insta = { version = "1.46", features = ["json"] }
+criterion = { version = "0.8.2", features = ["async_tokio"] }
 
 [profile.release]
 opt-level = 3
@@ -39,3 +40,7 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[[bench]]
+name = "edgewit_bench"
+harness = false

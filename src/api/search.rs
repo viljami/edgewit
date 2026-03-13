@@ -160,10 +160,10 @@ fn execute_search(
                 }
 
                 if let Some(arr) = parsed.get("_index").and_then(|v| v.as_array()) {
-                    if !arr.is_empty() {
-                        if let Some(s) = arr[0].as_str() {
-                            index_name = s.to_string();
-                        }
+                    if !arr.is_empty()
+                        && let Some(s) = arr[0].as_str()
+                    {
+                        index_name = s.to_string();
                     }
                 } else if let Some(val) = parsed.get("_index").and_then(|v| v.as_str()) {
                     index_name = val.to_string();
@@ -206,70 +206,67 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
         return q.clone();
     }
 
-    if let Some(b) = body {
-        if let Some(q) = &b.query {
-            // Very naive OpenSearch query DSL parsing for M3
-            // If they passed {"query": {"query_string": {"query": "foo"}}}
-            if let Some(qs) = q.get("query_string") {
-                if let Some(query_str) = qs.get("query").and_then(|v| v.as_str()) {
-                    return query_str.to_string();
+    if let Some(b) = body
+        && let Some(q) = &b.query
+    {
+        // Very naive OpenSearch query DSL parsing for M3
+        // If they passed {"query": {"query_string": {"query": "foo"}}}
+        if let Some(qs) = q.get("query_string")
+            && let Some(query_str) = qs.get("query").and_then(|v| v.as_str())
+        {
+            return query_str.to_string();
+        }
+        // If they passed {"query": {"match_all": {}}}
+        if q.get("match_all").is_some() {
+            return "*".to_string();
+        }
+
+        // If they passed {"query": {"match": {"field": "value"}}}
+        if let Some(m) = q.get("match")
+            && let Some(obj) = m.as_object()
+        {
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    return format!("{}:{}", k, s);
+                } else if let Some(obj2) = v.as_object()
+                    && let Some(q_val) = obj2.get("query").and_then(|v| v.as_str())
+                {
+                    return format!("{}:{}", k, q_val);
                 }
             }
-            // If they passed {"query": {"match_all": {}}}
-            if q.get("match_all").is_some() {
-                return "*".to_string();
-            }
+        }
 
-            // If they passed {"query": {"match": {"field": "value"}}}
-            if let Some(m) = q.get("match") {
-                if let Some(obj) = m.as_object() {
+        // Basic fallback for other simple queries (e.g., bool -> must -> match)
+        if let Some(bool_q) = q.get("bool")
+            && let Some(must) = bool_q.get("must")
+            && let Some(arr) = must.as_array()
+        {
+            let mut parts = Vec::new();
+            for item in arr {
+                if let Some(m) = item.get("match") {
+                    if let Some(obj) = m.as_object() {
+                        for (k, v) in obj {
+                            if let Some(s) = v.as_str() {
+                                parts.push(format!("{}:{}", k, s));
+                            } else if let Some(obj2) = v.as_object()
+                                && let Some(q_val) = obj2.get("query").and_then(|v| v.as_str())
+                            {
+                                parts.push(format!("{}:{}", k, q_val));
+                            }
+                        }
+                    }
+                } else if let Some(m) = item.get("match_phrase")
+                    && let Some(obj) = m.as_object()
+                {
                     for (k, v) in obj {
                         if let Some(s) = v.as_str() {
-                            return format!("{}:{}", k, s);
-                        } else if let Some(obj2) = v.as_object() {
-                            if let Some(q_val) = obj2.get("query").and_then(|v| v.as_str()) {
-                                return format!("{}:{}", k, q_val);
-                            }
+                            parts.push(format!("{}:\"{}\"", k, s));
                         }
                     }
                 }
             }
-
-            // Basic fallback for other simple queries (e.g., bool -> must -> match)
-            if let Some(bool_q) = q.get("bool") {
-                if let Some(must) = bool_q.get("must") {
-                    if let Some(arr) = must.as_array() {
-                        let mut parts = Vec::new();
-                        for item in arr {
-                            if let Some(m) = item.get("match") {
-                                if let Some(obj) = m.as_object() {
-                                    for (k, v) in obj {
-                                        if let Some(s) = v.as_str() {
-                                            parts.push(format!("{}:{}", k, s));
-                                        } else if let Some(obj2) = v.as_object() {
-                                            if let Some(q_val) =
-                                                obj2.get("query").and_then(|v| v.as_str())
-                                            {
-                                                parts.push(format!("{}:{}", k, q_val));
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if let Some(m) = item.get("match_phrase") {
-                                if let Some(obj) = m.as_object() {
-                                    for (k, v) in obj {
-                                        if let Some(s) = v.as_str() {
-                                            parts.push(format!("{}:\"{}\"", k, s));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if !parts.is_empty() {
-                            return parts.join(" AND ");
-                        }
-                    }
-                }
+            if !parts.is_empty() {
+                return parts.join(" AND ");
             }
         }
     }

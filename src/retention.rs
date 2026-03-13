@@ -96,12 +96,11 @@ pub async fn run_compaction_and_retention_worker(
 
         // Let's get the last committed WAL offset from the index
         let mut committed_offset = 0;
-        if let Ok(metas) = index.load_metas() {
-            if let Some(payload) = metas.payload {
-                if let Ok(offset) = payload.parse::<u64>() {
-                    committed_offset = offset;
-                }
-            }
+        if let Ok(metas) = index.load_metas()
+            && let Some(payload) = metas.payload
+            && let Ok(offset) = payload.parse::<u64>()
+        {
+            committed_offset = offset;
         }
 
         cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes);
@@ -115,14 +114,14 @@ fn cleanup_wals(data_dir: &PathBuf, committed_offset: u64, max_wal_bytes: u64) {
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("wal") {
-                if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    if let Ok(start_offset) = u64::from_str_radix(file_stem, 16) {
-                        let size = entry.metadata().unwrap().len();
-                        wal_files.push((start_offset, path, size));
-                        total_wal_size += size;
-                    }
-                }
+            if path.is_file()
+                && path.extension().and_then(|s| s.to_str()) == Some("wal")
+                && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
+                && let Ok(start_offset) = u64::from_str_radix(file_stem, 16)
+            {
+                let size = entry.metadata().unwrap().len();
+                wal_files.push((start_offset, path, size));
+                total_wal_size += size;
             }
         }
 

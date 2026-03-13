@@ -152,21 +152,17 @@ impl WalAppender {
             }
 
             // Flush the userspace buffer to the OS
-            if batch_success {
-                if let Err(e) = writer.flush() {
-                    error!("WAL flush error: {}", e);
-                    batch_success = false;
-                }
+            if batch_success && let Err(e) = writer.flush() {
+                error!("WAL flush error: {}", e);
+                batch_success = false;
             }
 
             // Sync the OS buffer to the physical disk (fsync)
             // This guarantees durability. If the Pi loses power after this returns,
             // the data is safe.
-            if batch_success {
-                if let Err(e) = writer.get_ref().sync_data() {
-                    error!("WAL sync_data error: {}", e);
-                    batch_success = false;
-                }
+            if batch_success && let Err(e) = writer.get_ref().sync_data() {
+                error!("WAL sync_data error: {}", e);
+                batch_success = false;
             }
 
             // Rotate the WAL file if it gets too large (e.g., > 32 MB)
@@ -178,7 +174,7 @@ impl WalAppender {
                 current_file_start_offset = self.current_offset;
                 wal_path = self
                     .dir
-                    .join(format!("{:016x}.wal", current_file_start_offset));
+                    .join(format!("{current_file_start_offset:016x}.wal"));
 
                 match OpenOptions::new().create(true).append(true).open(&wal_path) {
                     Ok(new_file) => {
@@ -223,8 +219,9 @@ pub struct WalReader {
 
 impl WalReader {
     pub fn new(path: &Path, start_offset: u64) -> std::io::Result<Self> {
-        let mut file = std::fs::File::open(path)?;
         use std::io::{Seek, SeekFrom};
+
+        let mut file = std::fs::File::open(path)?;
         file.seek(SeekFrom::Start(start_offset))?;
         Ok(Self {
             file,

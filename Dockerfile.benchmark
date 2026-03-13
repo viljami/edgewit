@@ -1,0 +1,51 @@
+# ---- Build Stage ----
+FROM rust:slim-bookworm AS builder
+
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/edgewit
+
+# Create a dummy project to cache dependencies
+COPY Cargo.toml ./
+
+# Create a dummy src/main.rs to allow cargo to build the dependencies
+# Includes benches to ensure the bench targets don't fail dependency resolution
+RUN mkdir -p src/bin benches && \
+    echo "fn main() {}" > src/main.rs && \
+    echo "fn main() {}" > src/bin/generate_openapi.rs && \
+    echo "fn main() {}" > benches/edgewit_bench.rs && \
+    cargo build --release && \
+    rm -rf src benches
+
+# Copy the actual source code
+COPY src ./src
+COPY benches ./benches
+
+# Touch the main file to invalidate the dummy build cache for the main crate
+# and build the actual application
+RUN touch src/main.rs && cargo build --release
+
+# ---- Runtime Stage ----
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r edgewit && useradd -r -g edgewit edgewit
+RUN mkdir -p /data && chown edgewit:edgewit /data
+
+WORKDIR /app
+
+COPY --from=builder /usr/src/edgewit/target/release/edgewit ./
+
+USER edgewit
+
+EXPOSE 9200
+
+ENV EDGEWIT_DATA_DIR=/data
+ENV RUST_LOG=info
+
+ENTRYPOINT ["./edgewit"]

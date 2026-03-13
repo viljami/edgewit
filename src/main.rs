@@ -5,15 +5,15 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
-use tracing::{Level, info};
-use tracing_subscriber::FmtSubscriber;
+use tracing::info;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[tokio::main]
 async fn main() {
     // Initialize tracing for standard output logging
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
-        .finish();
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    let subscriber = FmtSubscriber::builder().with_env_filter(filter).finish();
 
     tracing::subscriber::set_global_default(subscriber)
         .expect("Setting default tracing subscriber failed");
@@ -86,12 +86,12 @@ async fn main() {
     if let Ok(entries) = std::fs::read_dir(&data_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("wal") {
-                if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    if let Ok(start_offset) = u64::from_str_radix(file_stem, 16) {
-                        wal_files.push((start_offset, path, entry.metadata().unwrap().len()));
-                    }
-                }
+            if path.is_file()
+                && path.extension().and_then(|s| s.to_str()) == Some("wal")
+                && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
+                && let Ok(start_offset) = u64::from_str_radix(file_stem, 16)
+            {
+                wal_files.push((start_offset, path, entry.metadata().unwrap().len()));
             }
         }
     }
@@ -103,11 +103,7 @@ async fn main() {
     for (start_offset, wal_path, size) in wal_files {
         let end_offset = start_offset + size;
         if end_offset > current_offset {
-            let read_start_file_offset = if current_offset > start_offset {
-                current_offset - start_offset
-            } else {
-                0
-            };
+            let read_start_file_offset = current_offset.saturating_sub(start_offset);
 
             info!(
                 "Replaying WAL file {:?} from file offset {}...",

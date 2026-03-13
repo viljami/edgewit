@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  edgewit:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+    image: edgewit:local
+    container_name: edgewit_bench
+    ports:
+      - "9200:9200"
+    volumes:
+      - edgewit_bench_data:/data
+    environment:
+      - RUST_LOG=info
+      - EDGEWIT_DATA_DIR=/data
+      - EDGEWIT_PORT=9200
+    deploy:
+      resources:
+        limits:
+          # Simulate Edge / Micro-Cloud constraint
+          cpus: "1.0"
+          # Edgewit target is < 100MB, giving it 256M container limit
+          memory: 256M
+
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch_bench
+    environment:
+      - cluster.name=opensearch-bench-cluster
+      - node.name=opensearch-bench-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_PLUGIN=true
+    ports:
+      - "9201:9200" # Map to 9201 so it doesn't conflict with Edgewit
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          # Same CPU constraint as Edgewit
+          cpus: "1.0"
+          # Give it slightly more than heap size to prevent immediate container OOM kills
+          memory: 1.5G
+
+volumes:
+  edgewit_bench_data:
+    driver: local

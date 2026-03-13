@@ -11,7 +11,9 @@ use tokio::time::{Duration, sleep};
 
 #[tokio::test]
 async fn test_full_ingest_and_search_flow() {
-    let _ = tracing_subscriber::fmt().with_env_filter("edgewit=debug").try_init();
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("edgewit=debug")
+        .try_init();
     unsafe { std::env::set_var("EDGEWIT_COMMIT_INTERVAL_SECS", "1") };
     let temp_dir = TempDir::new().unwrap();
     let data_dir = temp_dir.path().to_path_buf();
@@ -64,7 +66,10 @@ async fn test_full_ingest_and_search_flow() {
 
     ingest_resp.assert_status(axum::http::StatusCode::CREATED);
 
-    let bulk_resp = server.post("/e2e-index/_doc").json(&json!({"message": "second doc", "level": "WARN"})).await;
+    let bulk_resp = server
+        .post("/e2e-index/_doc")
+        .json(&json!({"message": "second doc", "level": "WARN"}))
+        .await;
 
     bulk_resp.assert_status(axum::http::StatusCode::CREATED);
 
@@ -75,11 +80,17 @@ async fn test_full_ingest_and_search_flow() {
     sleep(Duration::from_secs(3)).await;
 
     // 8. Test Search
-    let search_resp = server.get("/_search").add_query_param("q", "_source.message:hello").await;
+    let search_resp = server
+        .get("/_search")
+        .add_query_param("q", "_source.message:hello")
+        .await;
 
     search_resp.assert_status_ok();
     let search_json = search_resp.json::<serde_json::Value>();
-    println!("Search result: {}", serde_json::to_string_pretty(&search_json).unwrap());
+    println!(
+        "Search result: {}",
+        serde_json::to_string_pretty(&search_json).unwrap()
+    );
     assert_eq!(search_json["hits"]["total"]["value"], 1);
     assert_eq!(
         search_json["hits"]["hits"][0]["_source"]["message"],

@@ -81,45 +81,73 @@ pub async fn bulk_handler(
     State(state): State<AppState>,
     body: Bytes,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
-    // For M1, we accept the raw bulk body, assume a generic index like "default",
-    // and write the entire payload. In M2 we'll parse the NDJSON properly.
-    let index = "default".to_string();
-
     metrics::counter!("edgewit_ingest_requests_total").increment(1);
     metrics::counter!("edgewit_ingest_bytes_total").increment(body.len() as u64);
 
-    let (tx, rx) = oneshot::channel();
+    let payload_str = std::str::from_utf8(&body)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UTF-8".to_string()))?;
+    let mut lines = payload_str.lines().filter(|l| !l.trim().is_empty());
 
-    let req = WalRequest {
-        event: IngestEvent {
-            index: index.clone(),
-            payload: body.to_vec(),
-        },
-        responder: tx,
-    };
+    let mut receivers = Vec::new();
+    let mut indices = Vec::new();
 
-    if state.wal_sender.send(req).await.is_err() {
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "WAL channel closed".to_string(),
-        ));
+    while let Some(meta_line) = lines.next() {
+        let meta: serde_json::Value = serde_json::from_str(meta_line).unwrap_or_default();
+        let index = meta
+            .get("index")
+            .and_then(|i| i.get("_index"))
+            .and_then(|i| i.as_str())
+            .unwrap_or("default")
+            .to_string();
+
+        let doc_line = match lines.next() {
+            Some(l) => l,
+            None => break,
+        };
+
+        let (tx, rx) = oneshot::channel();
+
+        let req = WalRequest {
+            event: IngestEvent {
+                index: index.clone(),
+                payload: doc_line.as_bytes().to_vec(),
+            },
+            responder: tx,
+        };
+
+        if state.wal_sender.send(req).await.is_err() {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "WAL channel closed".to_string(),
+            ));
+        }
+
+        receivers.push(rx);
+        indices.push(index);
     }
 
-    match rx.await {
-        Ok(Ok(_)) => Ok((
-            StatusCode::OK,
-            Json(json!({
-                "took": 1,
-                "errors": false,
-                "items": [] // Simplified for M1
-            })),
-        )),
-        Ok(Err(e)) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
-        Err(_) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "WAL responder dropped".to_string(),
-        )),
+    let mut items = Vec::new();
+    let mut has_errors = false;
+
+    for (i, rx) in receivers.into_iter().enumerate() {
+        let status = match rx.await {
+            Ok(Ok(_)) => 201,
+            _ => {
+                has_errors = true;
+                500
+            }
+        };
+        items.push(json!({"index": {"_index": indices[i], "status": status}}));
     }
+
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "took": 1,
+            "errors": has_errors,
+            "items": items
+        })),
+    ))
 }
 
 #[cfg(test)]
@@ -201,7 +229,14 @@ mod tests {
         assert_json_snapshot!(response.json::<serde_json::Value>(), @r###"
         {
           "errors": false,
-          "items": [],
+          "items": [
+            {
+              "index": {
+                "_index": "test",
+                "status": 201
+              }
+            }
+          ],
           "took": 1
         }
         "###);
