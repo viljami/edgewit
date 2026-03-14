@@ -3,7 +3,7 @@ description: A lightweight, Rust-based search and analytics engine for edge envi
 
 # GitHub Pages automatically configures url and baseurl,
 # keeping them empty prevents accidental overrides.
-baseurl: ""
+baseurl: "/edgewit"
 url: ""
 
 github_username: viljami
