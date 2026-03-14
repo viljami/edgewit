@@ -82,6 +82,8 @@ async fn test_complex_aggregation_search() {
         wal_sender: wal_tx,
         index_reader: index_reader.clone(),
         prometheus_handle,
+        registry: edgewit::registry::IndexRegistry::new(),
+        data_dir: std::path::PathBuf::from("/tmp"),
     };
 
     let server = Arc::new(TestServer::new(app_router(state)));

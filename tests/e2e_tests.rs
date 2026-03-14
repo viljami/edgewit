@@ -50,6 +50,8 @@ async fn test_full_ingest_and_search_flow() {
         wal_sender: wal_tx,
         index_reader: index_reader.clone(),
         prometheus_handle,
+        registry: edgewit::registry::IndexRegistry::new(),
+        data_dir: std::path::PathBuf::from("/tmp"),
     };
 
     let server = TestServer::new(app_router(state));

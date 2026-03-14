@@ -12,7 +12,9 @@ Edgewit provides powerful full-text search and aggregations for local observabil
 
 - **Edge-First:** Runs deterministically under 150MB of memory.
 - **OpenSearch Compatible (Subset):** Drop-in replacement for basic log collection agents, implementing a focused subset of the API.
-- **Crash-Resilient:** Custom WAL implementation built for slow SD cards.
+- **Crash-Resilient:** Custom WAL implementation built for slow SD cards with deterministic startup recovery.
+- **Declarative Indexing:** YAML-based index definitions with strict, drop-unmapped, or dynamic schema modes.
+- **Zero-Overhead Retention:** Physical time-based partitioning for fast, SD-card friendly log rotation and deletion.
 </section>
 
 <section id="quickstart" class="card" markdown="1">

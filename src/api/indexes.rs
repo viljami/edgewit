@@ -154,16 +154,18 @@ pub async fn delete_index_handler(
 
             // Try to delete the yaml file
             if file_path.exists()
-                && let Err(e) = std::fs::remove_file(&file_path) {
-                    tracing::error!("Failed to delete index definition file: {}", e);
-                }
+                && let Err(e) = std::fs::remove_file(&file_path)
+            {
+                tracing::error!("Failed to delete index definition file: {}", e);
+            }
 
             // Wipe data
             let index_data_dir = indexes_dir.join(&index);
             if index_data_dir.exists()
-                && let Err(e) = std::fs::remove_dir_all(&index_data_dir) {
-                    tracing::error!("Failed to delete index data directory: {}", e);
-                }
+                && let Err(e) = std::fs::remove_dir_all(&index_data_dir)
+            {
+                tracing::error!("Failed to delete index data directory: {}", e);
+            }
 
             (
                 StatusCode::OK,

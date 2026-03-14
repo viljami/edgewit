@@ -153,6 +153,17 @@ _Note: Retention policies (`retention`) are completely ignored if `partition: no
 
 ---
 
+## Startup Recovery (Fail-Fast)
+
+Because Edgewit is designed for edge environments where power loss is common, it implements a highly deterministic startup recovery process:
+
+1. **Disk as Source of Truth**: On startup, Edgewit reads all `.index.yaml` files from the disk. If any file is malformed, invalid, or violates schema rules, Edgewit will **fail to start** and log a clear error. This prevents the system from running in a partially degraded or unpredictable state.
+2. **Metadata Verification**: It checks internal Tantivy segment metadata to verify consistency and locate the exact Write-Ahead Log (WAL) offset where it last successfully committed data.
+3. **Synchronous WAL Replay**: Before opening the API to accept new ingestion, Edgewit synchronously replays any remaining uncommitted events from the Write-Ahead Log into the index.
+4. **Partition State Recovery**: The background compaction and retention workers immediately scan partition directories on disk to rebuild their state, ensuring storage limits are continuously enforced.
+
+---
+
 ## Dynamic Index Management (API)
 
 While you can manage indexes via a configuration management tool (like Ansible or K3s) by simply writing `.index.yaml` files to the `data/indexes/` folder before Edgewit starts, you can also manage them dynamically at runtime via the REST API.

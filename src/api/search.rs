@@ -383,6 +383,8 @@ mod tests {
             prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
                 .build_recorder()
                 .handle(),
+            registry: crate::registry::IndexRegistry::new(),
+            data_dir: std::path::PathBuf::from("/tmp"),
         };
 
         TestServer::new(app_router(state))

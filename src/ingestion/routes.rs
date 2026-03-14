@@ -165,6 +165,8 @@ mod tests {
             prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
                 .build_recorder()
                 .handle(),
+            registry: crate::registry::IndexRegistry::new(),
+            data_dir: std::path::PathBuf::from("/tmp"),
         };
         let app = app_router(state);
         let server = TestServer::new(app);

@@ -370,7 +370,7 @@ expose retention configuration
 deliverables
 index inspection endpoints
 
-PHASE 10 STARTUP RECOVERY
+PHASE 10 STARTUP RECOVERY (COMPLETED)
 
 goals
 safe restart behavior

@@ -60,8 +60,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let registry = IndexRegistry::new();
     let indexes_dir = data_dir.join("indexes");
-    if let Ok(count) = registry.load_from_dir(&indexes_dir) {
-        info!("Loaded {} index definitions from {:?}", count, indexes_dir);
+    match registry.load_from_dir(&indexes_dir) {
+        Ok(count) => {
+            info!("Loaded {} index definitions from {:?}", count, indexes_dir);
+        }
+        Err(e) => {
+            tracing::error!("Startup failed: error loading index definitions: {}", e);
+            return Err(e.into());
+        }
     }
 
     // 1. Setup Tantivy Index
@@ -169,6 +175,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             retention_registry,
         )
         .await;
+    });
+
+    // 8. Spawn Compaction Worker
+    let compaction_worker = edgewit::compaction::CompactionWorker::new(data_dir.clone());
+    tokio::spawn(async move {
+        compaction_worker.run().await;
     });
 
     let index_reader = index
