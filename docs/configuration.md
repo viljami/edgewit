@@ -76,11 +76,11 @@ The following parameters were introduced specifically to tune Edgewit for constr
 - **Description:** Number of uncompressed document blocks to keep in RAM during search operations.
 - **Tuning Advice:** Lowering this (e.g., `5` or `10`) strictly limits search-time memory overhead on RAM-constrained devices, but increases disk reads for queries that return many `_source` documents.
 
-### `EDGEWIT_MERGE_MIN_SEGMENTS`
+### `EDGEWIT_MERGE_MIN_SEGMENTS` & `EDGEWIT_COMPACTION_INTERVAL_SECS`
 
-- **Default:** `10`
-- **Description:** Minimum number of segments required before triggering a background compaction (merge).
-- **Tuning Advice:** Higher values (e.g., `20`) reduce write amplification and save SD card wear by merging less often, at the cost of slightly slower search performance due to more open segment files.
+- **Default:** `10` (Segments) / `300` (Seconds)
+- **Description:** `EDGEWIT_COMPACTION_INTERVAL_SECS` defines how often the background compaction worker wakes up to scan partitioned indexes. If a partition has more segments than `EDGEWIT_MERGE_MIN_SEGMENTS`, they are merged together.
+- **Tuning Advice:** Higher values (e.g., `20` segments, `600` seconds) drastically reduce write amplification and save SD card wear by merging less often, at the cost of slightly slower search performance due to more open segment files.
 
 ### `EDGEWIT_COMMIT_INTERVAL_SECS` & `EDGEWIT_COMMIT_INTERVAL_DOCS`
 

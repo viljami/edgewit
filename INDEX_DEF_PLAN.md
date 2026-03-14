@@ -311,7 +311,7 @@ deliverables
 partition routing module
 partition directory structure
 
-PHASE 6 SEGMENT COMPACTION
+PHASE 6 SEGMENT COMPACTION (COMPLETED)
 
 goals
 optimize query performance and manage file handles on edge devices

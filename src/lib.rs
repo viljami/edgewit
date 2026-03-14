@@ -1,4 +1,5 @@
 pub mod api;
+pub mod compaction;
 pub mod indexer;
 pub mod ingestion;
 pub mod partition;
