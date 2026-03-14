@@ -160,12 +160,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let retention_config = edgewit::retention::RetentionConfig::from_env();
     let retention_index = index.clone();
     let retention_data_dir = data_dir.clone();
+    let retention_registry = registry.clone();
     tokio::spawn(async move {
         edgewit::retention::run_compaction_and_retention_worker(
             retention_data_dir,
             retention_index,
             retention_config,
-            registry,
+            retention_registry,
         )
         .await;
     });
@@ -187,6 +188,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prometheus_handle,
         wal_sender: wal_tx,
         index_reader,
+        registry,
+        data_dir: data_dir.clone(),
     };
 
     // Bind to 0.0.0.0 to allow external access (essential for Docker)

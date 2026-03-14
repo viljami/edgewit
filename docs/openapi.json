@@ -120,6 +120,103 @@
         }
       }
     },
+    "/indexes/{index}": {
+      "get": {
+        "tags": [
+          "indexes"
+        ],
+        "operationId": "get_index_handler",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Index definition returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexDefinition"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "indexes"
+        ],
+        "operationId": "create_index_handler",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Index created/updated successfully"
+          },
+          "400": {
+            "description": "Invalid schema"
+          },
+          "403": {
+            "description": "API management disabled"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "indexes"
+        ],
+        "operationId": "delete_index_handler",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Index deleted successfully"
+          },
+          "403": {
+            "description": "API management disabled"
+          },
+          "404": {
+            "description": "Index not found"
+          }
+        }
+      }
+    },
     "/metrics": {
       "get": {
         "tags": [],
@@ -209,6 +306,14 @@
   },
   "components": {
     "schemas": {
+      "CompressionOption": {
+        "type": "string",
+        "enum": [
+          "none",
+          "zstd",
+          "lz4"
+        ]
+      },
       "DocsStats": {
         "type": "object",
         "required": [
@@ -227,6 +332,42 @@
             "minimum": 0
           }
         }
+      },
+      "FieldDefinition": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "default": {},
+          "fast": {
+            "type": "boolean"
+          },
+          "indexed": {
+            "type": "boolean"
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "stored": {
+            "type": "boolean"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FieldType"
+          }
+        }
+      },
+      "FieldType": {
+        "type": "string",
+        "enum": [
+          "text",
+          "keyword",
+          "datetime",
+          "integer",
+          "float",
+          "boolean",
+          "bytes"
+        ]
       },
       "HealthResponse": {
         "type": "object",
@@ -265,6 +406,58 @@
           }
         }
       },
+      "IndexDefinition": {
+        "type": "object",
+        "required": [
+          "name",
+          "fields"
+        ],
+        "properties": {
+          "compression": {
+            "$ref": "#/components/schemas/CompressionOption"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldDefinition"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "mode": {
+            "$ref": "#/components/schemas/SchemaMode"
+          },
+          "name": {
+            "type": "string"
+          },
+          "partition": {
+            "$ref": "#/components/schemas/PartitionStrategy"
+          },
+          "retention": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "timestamp_field": {
+            "type": "string"
+          }
+        }
+      },
       "IndexStats": {
         "type": "object",
         "required": [
@@ -294,6 +487,23 @@
             "$ref": "#/components/schemas/IndexStats"
           }
         }
+      },
+      "PartitionStrategy": {
+        "type": "string",
+        "enum": [
+          "none",
+          "daily",
+          "hourly",
+          "monthly"
+        ]
+      },
+      "SchemaMode": {
+        "type": "string",
+        "enum": [
+          "strict",
+          "drop_unmapped",
+          "dynamic"
+        ]
       },
       "SearchRequestBody": {
         "type": "object",

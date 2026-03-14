@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::schema::validation::{ValidationError, validate_schema};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum SchemaMode {
@@ -15,7 +15,7 @@ pub enum SchemaMode {
     Dynamic,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum PartitionStrategy {
@@ -26,7 +26,7 @@ pub enum PartitionStrategy {
     Monthly,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum CompressionOption {
@@ -36,7 +36,7 @@ pub enum CompressionOption {
     Lz4,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldType {
     Text,
@@ -48,7 +48,7 @@ pub enum FieldType {
     Bytes,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 pub struct FieldDefinition {
     #[serde(rename = "type")]
     pub field_type: FieldType,
@@ -64,7 +64,7 @@ pub struct FieldDefinition {
     pub default: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, utoipa::ToSchema)]
 pub struct IndexDefinition {
     pub name: String,
     pub description: Option<String>,

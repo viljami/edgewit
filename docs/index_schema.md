@@ -15,6 +15,8 @@ Unlike heavy cloud-native search engines that rely on complex distributed cluste
 
 An index definition maps your JSON documents to Tantivy's underlying high-performance search schema. It dictates what fields are searchable, what fields can be aggregated, and how data is partitioned and retained.
 
+_(Note on terminology: In Edgewit, we use **"indexes"** rather than "indices" as the plural of index. This aligns with modern computer science standards and, by explicitly using an `/indexes/` path prefix in the API, we avoid the root-level routing conflicts that system like OpenSearch often experience)._
+
 ### File Location and Naming
 
 Index definitions are stored in the `/indexes/` subdirectory of your configured `EDGEWIT_DATA_DIR` (default: `./data/indexes/`).

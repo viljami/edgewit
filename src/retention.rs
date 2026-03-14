@@ -123,36 +123,35 @@ async fn apply_partition_retention(data_dir: &PathBuf, registry: &IndexRegistry)
         }
 
         if let Some(retention_str) = &def.retention
-            && let Some(duration) = parse_retention_duration(retention_str) {
-                let cutoff_date = Utc::now() - duration;
-                let cutoff_partition = format_partition_name(&cutoff_date, &def.partition);
+            && let Some(duration) = parse_retention_duration(retention_str)
+        {
+            let cutoff_date = Utc::now() - duration;
+            let cutoff_partition = format_partition_name(&cutoff_date, &def.partition);
 
-                let segments_dir = data_dir.join("indexes").join(&def.name).join("segments");
-                if let Ok(mut entries) = tokio::fs::read_dir(&segments_dir).await {
-                    while let Ok(Some(entry)) = entries.next_entry().await {
-                        if let Ok(file_type) = entry.file_type().await
-                            && file_type.is_dir()
-                                && let Some(partition_name) = entry.file_name().to_str()
-                                    && partition_name != "default"
-                                        && partition_name < cutoff_partition.as_str()
-                                    {
-                                        info!(
-                                            "Deleting expired partition: {} for index {}",
-                                            partition_name, def.name
-                                        );
-                                        if let Err(e) =
-                                            tokio::fs::remove_dir_all(entry.path()).await
-                                        {
-                                            warn!(
-                                                "Failed to delete expired partition {:?}: {}",
-                                                entry.path(),
-                                                e
-                                            );
-                                        }
-                                    }
+            let segments_dir = data_dir.join("indexes").join(&def.name).join("segments");
+            if let Ok(mut entries) = tokio::fs::read_dir(&segments_dir).await {
+                while let Ok(Some(entry)) = entries.next_entry().await {
+                    if let Ok(file_type) = entry.file_type().await
+                        && file_type.is_dir()
+                        && let Some(partition_name) = entry.file_name().to_str()
+                        && partition_name != "default"
+                        && partition_name < cutoff_partition.as_str()
+                    {
+                        info!(
+                            "Deleting expired partition: {} for index {}",
+                            partition_name, def.name
+                        );
+                        if let Err(e) = tokio::fs::remove_dir_all(entry.path()).await {
+                            warn!(
+                                "Failed to delete expired partition {:?}: {}",
+                                entry.path(),
+                                e
+                            );
+                        }
                     }
                 }
             }
+        }
     }
 }
 

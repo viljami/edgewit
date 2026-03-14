@@ -1,10 +1,11 @@
 pub mod auth;
 pub mod cluster;
+pub mod indexes;
 pub mod search;
 
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{delete, get, post, put},
 };
 use utoipa::OpenApi;
 
@@ -28,7 +29,9 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     state.prometheus_handle.render()
 }
 
+use crate::registry::IndexRegistry;
 use crate::wal::WalRequest;
+use std::path::PathBuf;
 use tantivy::IndexReader;
 
 #[derive(Clone)]
@@ -36,6 +39,8 @@ pub struct AppState {
     pub wal_sender: tokio::sync::mpsc::Sender<WalRequest>,
     pub index_reader: IndexReader,
     pub prometheus_handle: metrics_exporter_prometheus::PrometheusHandle,
+    pub registry: IndexRegistry,
+    pub data_dir: PathBuf,
 }
 
 // Generate the OpenAPI schema from the handlers and structs
@@ -49,7 +54,10 @@ pub struct AppState {
         ingest::bulk_handler,
         search::global_search_handler,
         search::index_search_handler,
-        metrics_handler
+        metrics_handler,
+        indexes::create_index_handler,
+        indexes::get_index_handler,
+        indexes::delete_index_handler
     ),
     components(schemas(
         cluster::HealthResponse,
@@ -59,7 +67,13 @@ pub struct AppState {
         cluster::IndexStats,
         cluster::DocsStats,
         cluster::StoreStats,
-        search::SearchRequestBody
+        search::SearchRequestBody,
+        crate::schema::definition::IndexDefinition,
+        crate::schema::definition::FieldDefinition,
+        crate::schema::definition::SchemaMode,
+        crate::schema::definition::PartitionStrategy,
+        crate::schema::definition::CompressionOption,
+        crate::schema::definition::FieldType
     )),
     info(
         title = "Edgewit API",
@@ -78,6 +92,12 @@ pub fn app_router(state: AppState) -> Router {
         .route("/metrics", get(metrics_handler))
         .route("/_bulk", post(ingest::bulk_handler))
         .route("/{index}/_doc", post(ingest::ingest_doc_handler))
+        .route(
+            "/indexes/{index}",
+            get(indexes::get_index_handler)
+                .put(indexes::create_index_handler)
+                .delete(indexes::delete_index_handler),
+        )
         .route(
             "/_search",
             get(search::global_search_handler).post(search::global_search_handler),

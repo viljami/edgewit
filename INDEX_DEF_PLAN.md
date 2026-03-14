@@ -339,7 +339,7 @@ deliverables
 retention worker
 partition expiration logic
 
-PHASE 8 API INDEX MANAGEMENT (CRUD)
+PHASE 8 API INDEX MANAGEMENT (CRUD) (COMPLETED)
 
 goals
 support full lifecycle management of indexes via API
