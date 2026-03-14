@@ -14,6 +14,7 @@ COPY Cargo.toml ./
 RUN mkdir -p src/bin && \
     echo "fn main() {}" > src/main.rs && \
     echo "fn main() {}" > src/bin/generate_openapi.rs && \
+    echo "fn main() {}" > benches/edgewit_bench.rs && \
     cargo build --release && \
     rm -rf src
 
