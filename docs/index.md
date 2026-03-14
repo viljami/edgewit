@@ -6,6 +6,8 @@ title: Home
 <section id="about" class="card" markdown="1">
 ## Why Edgewit?
 
+📦 **Container image:** `ghcr.io/viljami/edgewit`
+
 Edgewit provides powerful full-text search and aggregations for local observability, offline log analytics, and IoT gateway diagnostics. It avoids the memory overhead and operational complexity of a centralized cloud solution by running efficiently on constrained hardware like the Raspberry Pi.
 
 - **Edge-First:** Runs deterministically under 150MB of memory.
@@ -61,6 +63,13 @@ curl -X GET "http://localhost:9200/_search?q=_source.level:INFO"
 ## Configuration & API
 
 Check out the [Configuration Guide]({{ '/configuration/' | relative_url }}) and the [API Specification]({{ '/api/' | relative_url }}).
+
+</section>
+
+<section id="projects" class="card" markdown="1">
+## Projects using Edgewit
+
+- [ruuvi-home-lite](https://github.com/viljami/ruuvi-home-lite) - A browser PWA built for running and hosted on a Raspberry Pi 5. It connects to a local LAN Ruuvi Gateway to digest and present Ruuvi sensor data over time, including support for the latest Ruuvi air sensors.
 
 </section>
 

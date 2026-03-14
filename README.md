@@ -2,6 +2,8 @@
 
 **A lightweight, Rust-based search and analytics engine for edge environments.**
 
+📦 **Container image:** `ghcr.io/viljami/edgewit`
+
 Edgewit is inspired by [Quickwit](https://quickwit.io/) and built heavily upon [Tantivy](https://github.com/quickwit-oss/tantivy). It implements a focused, resource-efficient subset of the OpenSearch/Elasticsearch API designed specifically for constrained hardware, embedded systems, and single-board computers like the Raspberry Pi.
 
 It provides powerful full-text search and aggregations for local observability, offline log analytics, and IoT gateway diagnostics—without the memory overhead or operational complexity of a centralized cloud solution.
@@ -58,6 +60,14 @@ ing via Docker
 A fully functional `docker-compose.yaml` and `Dockerfile` are provided. The multi-stage build creates an extremely thin Debian-based image ru
 
 ing as a non-root user.
+
+You can run the pre-built container image directly from GitHub Container Registry:
+
+```bash
+docker run -p 9200:9200 -v edgewit_data:/app/data ghcr.io/viljami/edgewit:latest
+```
+
+Or build it locally with Docker Compose:
 
 ```bash
 docker compose up --build
@@ -171,6 +181,10 @@ able system, repository layout, container build.
 - ✅ **M8 Observability:** Metrics endpoint and Prometheus compatibility.
 
 _(See `PROJECT.md` for a full breakdown of the project vision)._
+
+## Projects using Edgewit
+
+- [ruuvi-home-lite](https://github.com/viljami/ruuvi-home-lite) - A browser PWA built for running and hosted on a Raspberry Pi 5. It connects to a local LAN Ruuvi Gateway to digest and present Ruuvi sensor data over time, including support for the latest Ruuvi air sensors.
 
 ## Contributing
 
