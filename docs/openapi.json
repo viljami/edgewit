@@ -55,6 +55,30 @@
         }
       }
     },
+    "/_cat/indexes": {
+      "get": {
+        "tags": [
+          "cluster"
+        ],
+        "summary": "Handler for the cat indexes endpoint (/_cat/indexes)",
+        "operationId": "cat_indexes_handler",
+        "responses": {
+          "200": {
+            "description": "List of indexes with stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatIndex"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/_health": {
       "get": {
         "tags": [
@@ -113,6 +137,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexes": {
+      "get": {
+        "tags": [
+          "indexes"
+        ],
+        "operationId": "list_indexes_handler",
+        "responses": {
+          "200": {
+            "description": "List of all index definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IndexDefinition"
+                  }
                 }
               }
             }
@@ -306,6 +353,53 @@
   },
   "components": {
     "schemas": {
+      "CatIndex": {
+        "type": "object",
+        "required": [
+          "health",
+          "status",
+          "index",
+          "uuid",
+          "pri",
+          "rep",
+          "docs.count",
+          "docs.deleted",
+          "store.size",
+          "pri.store.size"
+        ],
+        "properties": {
+          "docs.count": {
+            "type": "string"
+          },
+          "docs.deleted": {
+            "type": "string"
+          },
+          "health": {
+            "type": "string"
+          },
+          "index": {
+            "type": "string"
+          },
+          "pri": {
+            "type": "string"
+          },
+          "pri.store.size": {
+            "type": "string"
+          },
+          "rep": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "store.size": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          }
+        }
+      },
       "CompressionOption": {
         "type": "string",
         "enum": [

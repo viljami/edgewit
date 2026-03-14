@@ -14,6 +14,17 @@ While "indices" is the traditional Latin plural, "indexes" is the standard plura
 
 ---
 
+### Observability & Stats
+
+Edgewit provides several OpenSearch-compatible observability endpoints to monitor the health and performance of your edge node:
+
+- **`GET /_cat/indexes`**: Lists all active indexes along with their document counts and storage size approximations. Note that we deliberately use `/indexes` here instead of OpenSearch's `/indices` to remain consistent with our root CRUD endpoints.
+- **`GET /_health`** or **`GET /_cluster/health`**: Returns a quick snapshot of the node's operational status.
+- **`GET /_stats`**: Provides global search and ingestion metrics.
+- **`GET /metrics`**: Exposes internal Prometheus-compatible metrics for scraping by systems like Grafana or Datadog.
+
+---
+
 <div id="redoc-container"></div>
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 <script>

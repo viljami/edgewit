@@ -52,6 +52,24 @@ pub struct StoreStats {
     pub size_in_bytes: u64,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct CatIndex {
+    pub health: String,
+    pub status: String,
+    pub index: String,
+    pub uuid: String,
+    pub pri: String,
+    pub rep: String,
+    #[serde(rename = "docs.count")]
+    pub docs_count: String,
+    #[serde(rename = "docs.deleted")]
+    pub docs_deleted: String,
+    #[serde(rename = "store.size")]
+    pub store_size: String,
+    #[serde(rename = "pri.store.size")]
+    pub pri_store_size: String,
+}
+
 /// Handler for the root endpoint, emulating the default OpenSearch response
 #[utoipa::path(
     get,
@@ -140,13 +158,63 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
     })
 }
 
+/// Handler for the cat indexes endpoint (/_cat/indexes)
+#[utoipa::path(
+    get,
+    path = "/_cat/indexes",
+    responses(
+        (status = 200, description = "List of indexes with stats", body = Vec<CatIndex>)
+    )
+)]
+pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatIndex>> {
+    let searcher = state.index_reader.searcher();
+    let num_docs = searcher.num_docs();
+
+    let mut indices = Vec::new();
+    let registered = state.registry.list();
+
+    if registered.is_empty() {
+        indices.push(CatIndex {
+            health: "green".to_string(),
+            status: "open".to_string(),
+            index: "edgewit".to_string(),
+            uuid: "unknown".to_string(),
+            pri: "1".to_string(),
+            rep: "0".to_string(),
+            docs_count: num_docs.to_string(),
+            docs_deleted: "0".to_string(),
+            store_size: "0b".to_string(),
+            pri_store_size: "0b".to_string(),
+        });
+    } else {
+        for def in registered {
+            indices.push(CatIndex {
+                health: "green".to_string(),
+                status: "open".to_string(),
+                index: def.name,
+                uuid: "unknown".to_string(),
+                pri: "1".to_string(),
+                rep: "0".to_string(),
+                docs_count: num_docs.to_string(), // Approximation since we use a monolithic index for now
+                docs_deleted: "0".to_string(),
+                store_size: "0b".to_string(),
+                pri_store_size: "0b".to_string(),
+            });
+        }
+    }
+
+    Json(indices)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::api::{AppState, app_router};
+    use crate::registry::IndexRegistry;
     use axum_test::TestServer;
     use insta::assert_json_snapshot;
     use rstest::rstest;
+    use std::path::PathBuf;
     use tokio::sync::mpsc;
 
     fn setup_test_server() -> TestServer {
@@ -158,6 +226,8 @@ mod tests {
             prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
                 .build_recorder()
                 .handle(),
+            registry: IndexRegistry::new(),
+            data_dir: PathBuf::from("."),
         };
         let app = app_router(state);
         TestServer::new(app)

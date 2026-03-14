@@ -198,6 +198,18 @@ _Warning: This will permanently delete the index definition and immediately wipe
 curl -X DELETE http://localhost:9200/indexes/sensors
 ```
 
+### List All Indexes
+
+`GET /indexes`
+
+Returns a complete JSON array of all registered `IndexDefinition` schemas currently active on the device.
+
+### Check Index Health & Stats
+
+`GET /_cat/indexes`
+
+Returns a fast, OpenSearch-compatible tabular JSON array showing the active health, document count, and storage size of all initialized indexes.
+
 ### Security Configuration
 
 In highly secure or regulated edge environments, you may not want external applications to dynamically create or destroy indexes via the API. You can strictly lock the device down to read-only schema management by setting the environment variable:

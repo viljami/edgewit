@@ -116,6 +116,18 @@ pub async fn get_index_handler(
 }
 
 #[utoipa::path(
+    get,
+    path = "/indexes",
+    responses(
+        (status = 200, description = "List of all index definitions", body = Vec<IndexDefinition>)
+    )
+)]
+pub async fn list_indexes_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let indexes = state.registry.list();
+    (StatusCode::OK, Json(json!(indexes)))
+}
+
+#[utoipa::path(
     delete,
     path = "/indexes/{index}",
     responses(
@@ -141,19 +153,17 @@ pub async fn delete_index_handler(
             let file_path = indexes_dir.join(format!("{}.index.yaml", index));
 
             // Try to delete the yaml file
-            if file_path.exists() {
-                if let Err(e) = std::fs::remove_file(&file_path) {
+            if file_path.exists()
+                && let Err(e) = std::fs::remove_file(&file_path) {
                     tracing::error!("Failed to delete index definition file: {}", e);
                 }
-            }
 
             // Wipe data
             let index_data_dir = indexes_dir.join(&index);
-            if index_data_dir.exists() {
-                if let Err(e) = std::fs::remove_dir_all(&index_data_dir) {
+            if index_data_dir.exists()
+                && let Err(e) = std::fs::remove_dir_all(&index_data_dir) {
                     tracing::error!("Failed to delete index data directory: {}", e);
                 }
-            }
 
             (
                 StatusCode::OK,

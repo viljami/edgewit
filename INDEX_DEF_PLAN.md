@@ -356,7 +356,7 @@ deliverables
 index creation, update, and deletion APIs
 definition persistence and dynamic state reloading
 
-PHASE 9 OBSERVABILITY
+PHASE 9 OBSERVABILITY (COMPLETED)
 
 goals
 visibility into index configuration

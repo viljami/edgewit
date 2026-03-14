@@ -5,7 +5,7 @@ pub mod search;
 
 use axum::{
     Router,
-    routing::{delete, get, post, put},
+    routing::{get, post},
 };
 use utoipa::OpenApi;
 
@@ -55,9 +55,11 @@ pub struct AppState {
         search::global_search_handler,
         search::index_search_handler,
         metrics_handler,
+        cluster::cat_indexes_handler,
         indexes::create_index_handler,
         indexes::get_index_handler,
-        indexes::delete_index_handler
+        indexes::delete_index_handler,
+        indexes::list_indexes_handler
     ),
     components(schemas(
         cluster::HealthResponse,
@@ -67,6 +69,7 @@ pub struct AppState {
         cluster::IndexStats,
         cluster::DocsStats,
         cluster::StoreStats,
+        cluster::CatIndex,
         search::SearchRequestBody,
         crate::schema::definition::IndexDefinition,
         crate::schema::definition::FieldDefinition,
@@ -89,9 +92,11 @@ pub fn app_router(state: AppState) -> Router {
         .route("/_health", get(cluster::health_handler))
         .route("/_cluster/health", get(cluster::health_handler)) // OpenSearch alias
         .route("/_stats", get(cluster::stats_handler))
+        .route("/_cat/indexes", get(cluster::cat_indexes_handler))
         .route("/metrics", get(metrics_handler))
         .route("/_bulk", post(ingest::bulk_handler))
         .route("/{index}/_doc", post(ingest::ingest_doc_handler))
+        .route("/indexes", get(indexes::list_indexes_handler))
         .route(
             "/indexes/{index}",
             get(indexes::get_index_handler)
