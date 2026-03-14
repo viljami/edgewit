@@ -3,7 +3,7 @@ layout: default
 title: API Documentation
 ---
 
-<div class="card" markdown="1">
+<div class="card" style="background-color: #ffffff; color: #333333;" markdown="1">
 ## Edgewit API
 
 <div id="redoc-container"></div>
@@ -15,7 +15,7 @@ title: API Documentation
             theme: {
                 colors: {
                     primary: {
-                        main: "#ff5e00",
+                        main: "#58a6ff",
                     },
                 },
             },
