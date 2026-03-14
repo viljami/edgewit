@@ -324,7 +324,7 @@ manage file handle limits
 deliverables
 background compaction worker
 
-PHASE 7 RETENTION MANAGEMENT
+PHASE 7 RETENTION MANAGEMENT (COMPLETED)
 
 goals
 automatically remove expired partitions

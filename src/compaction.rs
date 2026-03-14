@@ -85,11 +85,10 @@ impl CompactionWorker {
 
                 if partition_path.is_dir() {
                     // Check for meta.json to ensure it's a valid Tantivy index before attempting to open
-                    if partition_path.join("meta.json").exists() {
-                        if let Err(e) = self.compact_partition(partition_path.clone()).await {
+                    if partition_path.join("meta.json").exists()
+                        && let Err(e) = self.compact_partition(partition_path.clone()).await {
                             error!("Error compacting partition {:?}: {}", partition_path, e);
                         }
-                    }
                 }
             }
         }

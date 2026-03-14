@@ -1,3 +1,7 @@
+use crate::partition::format_partition_name;
+use crate::registry::IndexRegistry;
+use crate::schema::definition::PartitionStrategy;
+use chrono::Utc;
 use std::path::PathBuf;
 use std::time::Duration;
 use tantivy::Index;
@@ -62,12 +66,15 @@ pub async fn run_compaction_and_retention_worker(
     data_dir: PathBuf,
     index: Index,
     config: RetentionConfig,
+    registry: IndexRegistry,
 ) {
     let mut interval = tokio::time::interval(Duration::from_mins(5)); // Run every 5 minutes
 
     loop {
         interval.tick().await;
         info!("Running background compaction and retention checks...");
+
+        apply_partition_retention(&data_dir, &registry).await;
 
         let index_dir = data_dir.join("index");
 
@@ -106,6 +113,64 @@ pub async fn run_compaction_and_retention_worker(
         if let Err(e) = cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes) {
             warn!("Cleanup wals failed: {e}");
         }
+    }
+}
+
+async fn apply_partition_retention(data_dir: &PathBuf, registry: &IndexRegistry) {
+    for def in registry.list() {
+        if def.partition == PartitionStrategy::None {
+            continue;
+        }
+
+        if let Some(retention_str) = &def.retention
+            && let Some(duration) = parse_retention_duration(retention_str) {
+                let cutoff_date = Utc::now() - duration;
+                let cutoff_partition = format_partition_name(&cutoff_date, &def.partition);
+
+                let segments_dir = data_dir.join("indexes").join(&def.name).join("segments");
+                if let Ok(mut entries) = tokio::fs::read_dir(&segments_dir).await {
+                    while let Ok(Some(entry)) = entries.next_entry().await {
+                        if let Ok(file_type) = entry.file_type().await
+                            && file_type.is_dir()
+                                && let Some(partition_name) = entry.file_name().to_str()
+                                    && partition_name != "default"
+                                        && partition_name < cutoff_partition.as_str()
+                                    {
+                                        info!(
+                                            "Deleting expired partition: {} for index {}",
+                                            partition_name, def.name
+                                        );
+                                        if let Err(e) =
+                                            tokio::fs::remove_dir_all(entry.path()).await
+                                        {
+                                            warn!(
+                                                "Failed to delete expired partition {:?}: {}",
+                                                entry.path(),
+                                                e
+                                            );
+                                        }
+                                    }
+                    }
+                }
+            }
+    }
+}
+
+fn parse_retention_duration(retention: &str) -> Option<chrono::Duration> {
+    if retention.is_empty() {
+        return None;
+    }
+    let (num_part, unit_part) = retention.split_at(retention.len() - 1);
+    let num = num_part.parse::<i64>().ok()?;
+    match unit_part {
+        "s" => Some(chrono::Duration::seconds(num)),
+        "m" => Some(chrono::Duration::minutes(num)),
+        "h" => Some(chrono::Duration::hours(num)),
+        "d" => Some(chrono::Duration::days(num)),
+        "w" => Some(chrono::Duration::weeks(num)),
+        "M" => Some(chrono::Duration::days(num * 30)),
+        "Y" => Some(chrono::Duration::days(num * 365)),
+        _ => None,
     }
 }
 
@@ -213,6 +278,23 @@ mod tests {
 
         let size = get_dir_size(temp_dir.path());
         assert_eq!(size, 3072);
+    }
+
+    #[test]
+    fn test_parse_retention_duration() {
+        assert_eq!(
+            parse_retention_duration("7d"),
+            Some(chrono::Duration::days(7))
+        );
+        assert_eq!(
+            parse_retention_duration("12h"),
+            Some(chrono::Duration::hours(12))
+        );
+        assert_eq!(
+            parse_retention_duration("1M"),
+            Some(chrono::Duration::days(30))
+        );
+        assert_eq!(parse_retention_duration("invalid"), None);
     }
 
     #[test]

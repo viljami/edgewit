@@ -1,4 +1,5 @@
 use edgewit::api::{AppState, app_router};
+use edgewit::registry::IndexRegistry;
 use edgewit::wal::WalAppender;
 use std::env;
 use std::net::SocketAddr;
@@ -56,6 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     rayon::ThreadPoolBuilder::new()
         .num_threads(search_threads)
         .build_global()?;
+
+    let registry = IndexRegistry::new();
+    let indexes_dir = data_dir.join("indexes");
+    if let Ok(count) = registry.load_from_dir(&indexes_dir) {
+        info!("Loaded {} index definitions from {:?}", count, indexes_dir);
+    }
 
     // 1. Setup Tantivy Index
     let index = edgewit::indexer::setup_index(&data_dir)?;
@@ -158,6 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             retention_data_dir,
             retention_index,
             retention_config,
+            registry,
         )
         .await;
     });

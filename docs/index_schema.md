@@ -16,6 +16,7 @@ Unlike heavy cloud-native search engines that rely on complex distributed cluste
 An index definition maps your JSON documents to Tantivy's underlying high-performance search schema. It dictates what fields are searchable, what fields can be aggregated, and how data is partitioned and retained.
 
 ### File Location and Naming
+
 Index definitions are stored in the `/indexes/` subdirectory of your configured `EDGEWIT_DATA_DIR` (default: `./data/indexes/`).
 
 Files must be named using the pattern: `<index-name>.index.yaml`. For example, the definition for the `logs` index must be named `logs.index.yaml`.
@@ -74,15 +75,15 @@ fields:
 
 ## Root Level Configuration
 
-| Property          | Required | Description                                                                                                                                                                                                                           |
-| :---------------- | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`            | **Yes**  | The unique name of the index. This must match the API endpoint (e.g., `PUT /indexes/logs`) and the filename prefix.                                                                                                                   |
-| `description`     | No       | A human-readable description of the index's purpose.                                                                                                                                                                                  |
-| `timestamp_field` | **Yes**\*| The explicit JSON field used to route documents to time partitions and calculate data expiration. (\*Required if `partition` is not `none`. Default is `timestamp`).                                                                  |
-| `mode`            | No       | Defines how Edgewit handles JSON fields that are not explicitly defined in the schema. Options: `strict`, `drop_unmapped`, `dynamic`. (Default: `dynamic`).                                                                           |
-| `partition`       | No       | Strategy for partitioning data into separate physical directories over time. Crucial for efficient retention and fast time-based queries. Options: `none`, `daily`, `hourly`, `monthly`. (Default: `none`).                           |
-| `retention`       | No       | Automatically deletes data older than this duration based on the partition time. Format: Number followed by unit (`s`, `m`, `h`, `d`, `w`, `M`, `Y`). Example: `30d`.                                                                 |
-| `compression`     | No       | Compression algorithm for the underlying Tantivy segments. Options: `none`, `zstd`, `lz4`. (Default: `zstd`).                                                                                                                         |
+| Property          | Required  | Description                                                                                                                                                                                                                     |
+| :---------------- | :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`            | **Yes**   | The unique name of the index. This must match the API endpoint (e.g., `PUT /indexes/logs`) and the filename prefix.                                                                                                             |
+| `description`     | No        | A human-readable description of the index's purpose.                                                                                                                                                                            |
+| `timestamp_field` | **Yes**\* | The explicit JSON field used to route documents to time partitions and calculate data expiration. (\*Required if `partition` is not `none`. Default is `timestamp`).                                                            |
+| `mode`            | No        | Defines how Edgewit handles JSON fields that are not explicitly defined in the schema. Options: `strict`, `drop_unmapped`, `dynamic`. (Default: `dynamic`).                                                                     |
+| `partition`       | No        | Strategy for partitioning data into separate physical directories over time. Crucial for efficient retention and fast time-based queries. Options: `none`, `daily`, `hourly`, `monthly`. (Default: `none`).                     |
+| `retention`       | No        | Automatically deletes entire partition directories older than this duration based on the partition time. Format: Number followed by unit (`s`, `m`, `h`, `d`, `w`, `M`, `Y`). Example: `30d`. _Requires `partition` to be set._ |
+| `compression`     | No        | Compression algorithm for the underlying Tantivy segments. Options: `none`, `zstd`, `lz4`. (Default: `zstd`).                                                                                                                   |
 
 ---
 
@@ -90,7 +91,7 @@ fields:
 
 In edge environments, logging formats can change rapidly. The schema `mode` allows you to control ingestion strictness to protect your device's storage and memory.
 
-- **`strict`**: If an incoming JSON document contains a field that is *not* defined in the `fields` section, the entire document is rejected with a `400 Bad Request`.
+- **`strict`**: If an incoming JSON document contains a field that is _not_ defined in the `fields` section, the entire document is rejected with a `400 Bad Request`.
 - **`drop_unmapped`**: If a document contains undefined fields, the document is ingested, but the unknown fields are silently discarded. This guarantees only explicitly mapped data takes up disk space.
 - **`dynamic`** (Default): Edgewit will attempt to automatically infer the type of any new, undefined fields and add them to the index. While convenient for development, it is generally recommended to use `drop_unmapped` or `strict` in production to prevent schema bloat.
 
@@ -116,13 +117,37 @@ When defining `fields`, you must specify how the underlying search engine should
 
 Every field can be fine-tuned to balance search speed, aggregation capabilities, and disk footprint.
 
-| Property | Default | Description                                                                                                                                                                                                                                                                         |
-| :------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`   | **Yes** | The data type (from the table above).                                                                                                                                                                                                                                               |
-| `indexed`| `false` | If `true`, the field is added to the inverted index, allowing it to be filtered or searched in the `query` clause of a request.                                                                                                                                                     |
-| `fast`   | `false` | If `true`, the field is stored in a columnar format (FastField). **This is required if you want to sort by the field or run aggregations (stats, terms) on it.** Note: Setting `fast: true` increases RAM usage during queries.                                                     |
-| `stored` | `false` | If `true`, the individual field value is saved to disk so it can be retrieved separately. **Note:** Edgewit automatically stores the original JSON payload as `_source`. You rarely need to set `stored: true` unless you want to bypass JSON parsing for extreme read performance. |
-| `optional`| `false` | If `false`, the system will enforce that this field exists in every document. (Only applies if `mode` is `strict`).                                                                                                                                                                 |
+| Property   | Default | Description                                                                                                                                                                                                                                                                         |
+| :--------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`     | **Yes** | The data type (from the table above).                                                                                                                                                                                                                                               |
+| `indexed`  | `false` | If `true`, the field is added to the inverted index, allowing it to be filtered or searched in the `query` clause of a request.                                                                                                                                                     |
+| `fast`     | `false` | If `true`, the field is stored in a columnar format (FastField). **This is required if you want to sort by the field or run aggregations (stats, terms) on it.** Note: Setting `fast: true` increases RAM usage during queries.                                                     |
+| `stored`   | `false` | If `true`, the individual field value is saved to disk so it can be retrieved separately. **Note:** Edgewit automatically stores the original JSON payload as `_source`. You rarely need to set `stored: true` unless you want to bypass JSON parsing for extreme read performance. |
+| `optional` | `false` | If `false`, the system will enforce that this field exists in every document. (Only applies if `mode` is `strict`).                                                                                                                                                                 |
+
+---
+
+## Partitioning & Retention Architecture
+
+Edgewit physically separates data on the disk based on the `partition` strategy. This allows Edgewit to enforce retention policies with **zero I/O overhead**.
+
+Instead of opening massive search indexes and executing expensive "delete by query" operations to prune old logs (which thrashes SD cards), Edgewit's background worker simply identifies expired partition directories and deletes them entirely from the filesystem.
+
+**Example Structure:**
+If `partition: daily` and `retention: 7d` are set, the underlying disk will look like this:
+
+```text
+data/
+└── indexes/
+    └── logs/
+        └── segments/
+            ├── 2023-10-01/  <-- If today is 10-09, this folder is deleted instantly
+            ├── 2023-10-02/
+            ├── 2023-10-03/
+            └── ...
+```
+
+_Note: Retention policies (`retention`) are completely ignored if `partition: none` is set, because Edgewit cannot safely delete a monolithic index without scanning it._
 
 ---
 
@@ -133,6 +158,7 @@ While you can manage indexes via a configuration management tool (like Ansible o
 If an index is created or updated via the API, Edgewit will immediately apply the changes in memory and persist the `.index.yaml` file to disk so that the state survives a reboot.
 
 ### Create or Update an Index
+
 `PUT /indexes/<index-name>`
 
 ```bash
@@ -153,6 +179,7 @@ curl -X PUT http://localhost:9200/indexes/sensors \
 ```
 
 ### Get Index Definition
+
 `GET /indexes/<index-name>`
 
 ```bash
@@ -160,15 +187,17 @@ curl http://localhost:9200/indexes/sensors
 ```
 
 ### Delete an Index
+
 `DELETE /indexes/<index-name>`
 
-*Warning: This will permanently delete the index definition and immediately wipe all underlying search segments and data.*
+_Warning: This will permanently delete the index definition and immediately wipe all underlying search segments and data._
 
 ```bash
 curl -X DELETE http://localhost:9200/indexes/sensors
 ```
 
 ### Security Configuration
+
 In highly secure or regulated edge environments, you may not want external applications to dynamically create or destroy indexes via the API. You can strictly lock the device down to read-only schema management by setting the environment variable:
 
 `EDGEWIT_API_INDEX_MANAGEMENT_ENABLED=false`
