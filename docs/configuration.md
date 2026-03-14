@@ -1,3 +1,8 @@
+---
+layout: default
+title: Configuration
+---
+
 # Edgewit Configuration Guide
 
 Edgewit is built specifically for edge environments, such as Raspberry Pi devices and embedded systems. To support a wide variety of hardware profiles—from constrained 512MB devices to more capable 8GB edge gateways—Edgewit is configured entirely via environment variables.
