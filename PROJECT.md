@@ -258,19 +258,57 @@ deliverables:
 success criteria:
 operators can understand performance and health
 
-M9 DISTRIBUTED EDGE (FUTURE)
+M9 EXPANDED OPENSEARCH COMPATIBILITY (FUTURE)
 goal:
-enable federation across multiple devices
+ensure drop-in compatibility with popular log shippers like Vector, Fluent Bit, and Logstash
 
 deliverables:
 
-- node discovery
-- query fan-out
-- partial result merging
+- expanded support for OpenSearch APIs
+- additional query DSL features
+- full compatibility layer for shippers
+
+success criteria:
+popular shippers can send data without modified configurations
+
+M10 ADVANCED AGGREGATIONS (FUTURE)
+goal:
+support more complex metrics and bucket aggregations directly at the edge
+
+deliverables:
+
+- enhanced query parser
+- complex metric aggregations
+- nested bucket aggregations
+
+success criteria:
+complex analytical queries can be executed natively
+
+M11 PLUG-AND-PLAY OBSERVABILITY (FUTURE)
+goal:
+provide out-of-the-box observability for Edgewit itself
+
+deliverables:
+
+- official Grafana dashboard templates
+- expanded Prometheus metrics
+
+success criteria:
+users can monitor Edgewit with minimal setup
+
+M12 CLUSTER & REPLICATION (LIGHTWEIGHT) (FUTURE)
+goal:
+enable highly available edge clusters without heavy coordination systems
+
+deliverables:
+
+- peer-to-peer replication options
+- node discovery without ZooKeeper/etcd
+- query fan-out and result merging
 - cluster health
 
 success criteria:
-queries across multiple edge nodes
+queries and replication work across multiple edge nodes without a dedicated control plane
 
 LONG TERM VISION
 Edgewit becomes the standard lightweight search and analytics engine for edge infrastructure. It enables developers to run powerful search and aggregation locally on devices without requiring centralized log systems. Over time, it expands toward a federated edge observability layer where devices can search locally first and collaborate across networks when needed.

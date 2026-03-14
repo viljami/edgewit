@@ -63,3 +63,19 @@ curl -X GET "http://localhost:9200/_search?q=_source.level:INFO"
 Check out the [Configuration Guide]({{ '/configuration/' | relative_url }}) and the [API Specification]({{ '/api/' | relative_url }}).
 
 </section>
+
+<section id="news" class="card" markdown="1">
+## Recent News
+
+<ul style="list-style: none; padding: 0; margin-top: 1rem;">
+  {% for post in site.posts limit:3 %}
+    <li style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
+      <span style="color: #8b949e; font-size: 0.85em; display: block;">{{ post.date | date: "%B %-d, %Y" }}</span>
+      <h3 style="margin-top: 0.2rem; margin-bottom: 0.5rem; font-size: 1.25em;">
+        <a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a>
+      </h3>
+      <p style="margin: 0; color: var(--text); opacity: 0.8; font-size: 0.95em;">{{ post.content | strip_html | truncatewords: 30 }}</p>
+    </li>
+  {% endfor %}
+</ul>
+</section>

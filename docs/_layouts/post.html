@@ -1,0 +1,20 @@
+---
+layout: default
+---
+<article class="card" itemscope itemtype="http://schema.org/BlogPosting">
+    <header class="post-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+        <h1 class="post-title" itemprop="name headline" style="margin-top: 0;">{{ page.title | escape }}</h1>
+        <p class="post-meta" style="color: var(--text); opacity: 0.8; font-size: 0.9em;">
+            <time datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
+                {{ page.date | date: "%B %-d, %Y" }}
+            </time>
+            {% if page.author %}
+                • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span itemprop="name">{{ page.author }}</span></span>
+            {% endif %}
+        </p>
+    </header>
+
+    <div class="post-content" itemprop="articleBody">
+        {{ content }}
+    </div>
+</article>
