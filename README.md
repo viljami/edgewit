@@ -42,7 +42,7 @@ You will need the Rust toolchain installed.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/edgewit.git
+git clone https://github.com/viljami/edgewit.git
 cd edgewit
 
 # Run the server locally

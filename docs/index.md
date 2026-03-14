@@ -21,13 +21,13 @@ Edgewit provides powerful full-text search and aggregations for local observabil
 The easiest way to run Edgewit is via Docker:
 
 ```bash
-docker run -p 9200:9200 -v edgewit_data:/app/data ghcr.io/yourusername/edgewit:latest
+docker run -p 9200:9200 -v edgewit_data:/app/data ghcr.io/viljami/edgewit:latest
 ```
 
 Alternatively, compile from source:
 
 ```bash
-git clone https://github.com/yourusername/edgewit.git
+git clone https://github.com/viljami/edgewit.git
 cd edgewit
 cargo run --release
 ```
