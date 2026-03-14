@@ -1,7 +1,7 @@
+pub mod auth;
 pub mod cluster;
 pub mod ingest;
 pub mod search;
-pub mod auth;
 
 use axum::{
     Router,
@@ -57,7 +57,8 @@ pub struct AppState {
         cluster::IndicesStats,
         cluster::IndexStats,
         cluster::DocsStats,
-        cluster::StoreStats
+        cluster::StoreStats,
+        search::SearchRequestBody
     )),
     info(
         title = "Edgewit API",

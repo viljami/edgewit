@@ -24,12 +24,13 @@ pub struct SearchQueryParams {
     pub size: Option<usize>,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, utoipa::ToSchema)]
 pub struct SearchRequestBody {
     pub query: Option<serde_json::Value>,
     pub from: Option<usize>,
     pub size: Option<usize>,
     pub sort: Option<serde_json::Value>,
+    #[schema(value_type = Option<serde_json::Value>)]
     pub aggs: Option<Aggregations>,
 }
 
