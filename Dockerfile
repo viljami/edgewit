@@ -11,7 +11,7 @@ WORKDIR /usr/src/edgewit
 # Create a dummy project to cache dependencies
 COPY Cargo.toml ./
 # Create a dummy src/main.rs to allow cargo to build the dependencies
-RUN mkdir -p src/bin && \
+RUN mkdir -p src/bin benches && \
     echo "fn main() {}" > src/main.rs && \
     echo "fn main() {}" > src/bin/generate_openapi.rs && \
     echo "fn main() {}" > benches/edgewit_bench.rs && \
