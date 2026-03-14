@@ -6,9 +6,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tantivy::{
     Document, IndexReader,
-    aggregation::AggregationCollector,
-    aggregation::agg_req::Aggregations,
-    aggregation::agg_result::AggregationResults,
+    aggregation::{
+        AggregationCollector, AggregationLimitsGuard, agg_req::Aggregations,
+        agg_result::AggregationResults,
+    },
     collector::{Count, TopDocs},
     query::QueryParser,
 };
@@ -79,7 +80,7 @@ fn execute_search(
     let schema = searcher.index().schema();
 
     // Default to searching the `_source` field, which we configured as TEXT in M2
-    let source_field = schema.get_field("_source").unwrap();
+    let source_field = schema.get_field("_source").map_err(|e| e.to_string())?;
 
     let query_parser = QueryParser::for_index(searcher.index(), vec![source_field]);
 
@@ -87,9 +88,9 @@ fn execute_search(
     // For simplicity in M3, we parse the user's query and if target_index is present, we wrap it in a boolean query.
     let final_query_str = if let Some(idx) = target_index {
         if query_str.trim().is_empty() || query_str == "*" {
-            format!("_index:{}", idx)
+            format!("_index:{idx}")
         } else {
-            format!("+(_index:{}) +({})", idx, query_str)
+            format!("+(_index:{idx}) +({query_str})")
         }
     } else {
         if query_str.trim().is_empty() {
@@ -101,14 +102,15 @@ fn execute_search(
 
     let query = query_parser
         .parse_query(&final_query_str)
-        .map_err(|e| format!("Invalid query: {}", e))?;
+        .map_err(|e| format!("Invalid query: {e}"))?;
 
     let start = std::time::Instant::now();
 
     // We collect the total count and the top-K documents, and optionally aggregations
     let limit = if size == 0 { 1 } else { size };
     let (total_docs, top_docs, extracted_aggs) = if let Some(aggs_req) = aggs {
-        let agg_collector = AggregationCollector::from_aggs(aggs_req, Default::default());
+        let agg_collector =
+            AggregationCollector::from_aggs(aggs_req, AggregationLimitsGuard::default());
         let (total_docs, top_docs, aggs_res) = searcher
             .search(
                 &query,
@@ -118,7 +120,7 @@ fn execute_search(
                     agg_collector,
                 ),
             )
-            .map_err(|e| format!("Search error: {}", e))?;
+            .map_err(|e| format!("Search error: {e}"))?;
         (total_docs, top_docs, Some(aggs_res))
     } else {
         let (total_docs, top_docs) = searcher
@@ -126,7 +128,7 @@ fn execute_search(
                 &query,
                 &(Count, TopDocs::with_limit(limit).and_offset(from)),
             )
-            .map_err(|e| format!("Search error: {}", e))?;
+            .map_err(|e| format!("Search error: {e}"))?;
         (total_docs, top_docs, None)
     };
 
@@ -145,7 +147,7 @@ fn execute_search(
 
             let retrieved_doc: tantivy::TantivyDocument = searcher
                 .doc(doc_address)
-                .map_err(|e| format!("Failed to retrieve doc: {}", e))?;
+                .map_err(|e| format!("Failed to retrieve doc: {e}"))?;
 
             let doc_json_str = retrieved_doc.to_json(&schema);
             let mut source_json = serde_json::Value::Null;
@@ -228,11 +230,11 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
         {
             for (k, v) in obj {
                 if let Some(s) = v.as_str() {
-                    return format!("{}:{}", k, s);
+                    return format!("{k}:{s}");
                 } else if let Some(obj2) = v.as_object()
                     && let Some(q_val) = obj2.get("query").and_then(|v| v.as_str())
                 {
-                    return format!("{}:{}", k, q_val);
+                    return format!("{k}:{q_val}");
                 }
             }
         }
@@ -248,11 +250,11 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
                     if let Some(obj) = m.as_object() {
                         for (k, v) in obj {
                             if let Some(s) = v.as_str() {
-                                parts.push(format!("{}:{}", k, s));
+                                parts.push(format!("{k}:{s}"));
                             } else if let Some(obj2) = v.as_object()
                                 && let Some(q_val) = obj2.get("query").and_then(|v| v.as_str())
                             {
-                                parts.push(format!("{}:{}", k, q_val));
+                                parts.push(format!("{k}:{q_val}"));
                             }
                         }
                     }
@@ -261,7 +263,7 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
                 {
                     for (k, v) in obj {
                         if let Some(s) = v.as_str() {
-                            parts.push(format!("{}:\"{}\"", k, s));
+                            parts.push(format!("{k}:\"{s}\""));
                         }
                     }
                 }
@@ -305,10 +307,10 @@ pub async fn global_search_handler(
     match execute_search(&reader, &query_str, None, from, size, aggs) {
         Ok(resp) => axum::response::Json(resp).into_response(),
         Err(e) => {
-            error!("Search failed: {}", e);
+            error!("Search failed: {e}");
             (
                 axum::http::StatusCode::BAD_REQUEST,
-                format!("Search error: {}", e),
+                format!("Search error: {e}"),
             )
                 .into_response()
         }
@@ -349,7 +351,7 @@ pub async fn index_search_handler(
             error!("Search failed for index {}: {}", index, e);
             (
                 axum::http::StatusCode::BAD_REQUEST,
-                format!("Search error: {}", e),
+                format!("Search error: {e}"),
             )
                 .into_response()
         }
@@ -383,7 +385,7 @@ mod tests {
                 .handle(),
         };
 
-        TestServer::new(app_router(state)).unwrap()
+        TestServer::new(app_router(state))
     }
 
     #[tokio::test]

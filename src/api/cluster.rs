@@ -112,7 +112,7 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
     let num_segments = searcher.segment_readers().len() as u32;
 
     metrics::gauge!("edgewit_index_docs_total").set(num_docs as f64);
-    metrics::gauge!("edgewit_index_segments_total").set(num_segments as f64);
+    metrics::gauge!("edgewit_index_segments_total").set(f64::from(num_segments));
 
     Json(StatsResponse {
         _shards: ShardsInfo {
@@ -160,7 +160,7 @@ mod tests {
                 .handle(),
         };
         let app = app_router(state);
-        TestServer::new(app).unwrap()
+        TestServer::new(app)
     }
 
     #[rstest]

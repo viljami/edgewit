@@ -9,20 +9,19 @@ use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for standard output logging
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let subscriber = FmtSubscriber::builder().with_env_filter(filter).finish();
 
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Setting default tracing subscriber failed");
+    tracing::subscriber::set_global_default(subscriber)?;
 
     // Determine port, defaulting to 9200 (OpenSearch default)
     let port_str = env::var("EDGEWIT_PORT").unwrap_or_else(|_| "9200".to_string());
     let port: u16 = port_str
         .parse()
-        .expect("EDGEWIT_PORT must be a valid u16 port number");
+        .map_err(|_| "EDGEWIT_PORT must be a valid u16 port number")?;
 
     let data_dir_str = env::var("EDGEWIT_DATA_DIR").unwrap_or_else(|_| "./data".to_string());
     let data_dir = PathBuf::from(data_dir_str);
@@ -30,47 +29,44 @@ async fn main() {
     let index_memory_mb: usize = env::var("EDGEWIT_INDEX_MEMORY_MB")
         .unwrap_or_else(|_| "30".to_string())
         .parse()
-        .expect("EDGEWIT_INDEX_MEMORY_MB must be a valid usize");
+        .map_err(|_| "EDGEWIT_INDEX_MEMORY_MB must be a valid usize")?;
 
     info!("Using {}MB memory budget for indexing", index_memory_mb);
 
     let channel_buffer: usize = env::var("EDGEWIT_CHANNEL_BUFFER")
         .unwrap_or_else(|_| "10000".to_string())
         .parse()
-        .expect("EDGEWIT_CHANNEL_BUFFER must be a valid usize");
+        .map_err(|_| "EDGEWIT_CHANNEL_BUFFER must be a valid usize")?;
 
     let search_threads: usize = env::var("EDGEWIT_SEARCH_THREADS")
         .unwrap_or_else(|_| "1".to_string())
         .parse()
-        .expect("EDGEWIT_SEARCH_THREADS must be a valid usize");
+        .map_err(|_| "EDGEWIT_SEARCH_THREADS must be a valid usize")?;
 
     let docstore_cache_blocks: usize = env::var("EDGEWIT_DOCSTORE_CACHE_BLOCKS")
         .unwrap_or_else(|_| "20".to_string())
         .parse()
-        .expect("EDGEWIT_DOCSTORE_CACHE_BLOCKS must be a valid usize");
+        .map_err(|_| "EDGEWIT_DOCSTORE_CACHE_BLOCKS must be a valid usize")?;
 
     let merge_min_segments: usize = env::var("EDGEWIT_MERGE_MIN_SEGMENTS")
         .unwrap_or_else(|_| "10".to_string())
         .parse()
-        .expect("EDGEWIT_MERGE_MIN_SEGMENTS must be a valid usize");
+        .map_err(|_| "EDGEWIT_MERGE_MIN_SEGMENTS must be a valid usize")?;
 
     rayon::ThreadPoolBuilder::new()
         .num_threads(search_threads)
-        .build_global()
-        .expect("Failed to initialize rayon thread pool");
+        .build_global()?;
 
     // 1. Setup Tantivy Index
-    let index = edgewit::indexer::setup_index(&data_dir).expect("Failed to setup Tantivy index");
-    let mut writer = index
-        .writer(index_memory_mb * 1_000_000)
-        .expect("Failed to create IndexWriter");
+    let index = edgewit::indexer::setup_index(&data_dir)?;
+    let mut writer = index.writer(index_memory_mb * 1_000_000)?;
 
     let mut merge_policy = tantivy::merge_policy::LogMergePolicy::default();
     merge_policy.set_min_num_segments(merge_min_segments);
     writer.set_merge_policy(Box::new(merge_policy));
 
     // 2. Read WAL offset from the last Tantivy commit
-    let metas = index.load_metas().unwrap();
+    let metas = index.load_metas()?;
     let last_offset: u64 = metas
         .payload
         .as_ref()
@@ -91,7 +87,7 @@ async fn main() {
                 && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
                 && let Ok(start_offset) = u64::from_str_radix(file_stem, 16)
             {
-                wal_files.push((start_offset, path, entry.metadata().unwrap().len()));
+                wal_files.push((start_offset, path, entry.metadata()?.len()));
             }
         }
     }
@@ -130,9 +126,9 @@ async fn main() {
             "Replayed {} events. Committing segment at offset {}.",
             replayed, current_offset
         );
-        let mut commit = writer.prepare_commit().unwrap();
+        let mut commit = writer.prepare_commit()?;
         commit.set_payload(&current_offset.to_string());
-        commit.commit().unwrap();
+        commit.commit()?;
     } else {
         info!("No new events to replay from WAL.");
     }
@@ -169,17 +165,15 @@ async fn main() {
     let index_reader = index
         .reader_builder()
         .doc_store_cache_num_blocks(docstore_cache_blocks)
-        .try_into()
-        .expect("Failed to create reader");
+        .try_into()?;
 
     info!(
         "Search engine configured with {} threads and {} cache blocks",
         search_threads, docstore_cache_blocks
     );
 
-    let prometheus_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
-        .install_recorder()
-        .expect("failed to install recorder");
+    let prometheus_handle =
+        metrics_exporter_prometheus::PrometheusBuilder::new().install_recorder()?;
 
     let state = AppState {
         prometheus_handle,
@@ -192,11 +186,9 @@ async fn main() {
     info!("Starting Edgewit...");
     info!("Listening on {}", addr);
 
-    let listener = TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind to address");
+    let listener = TcpListener::bind(addr).await?;
 
-    axum::serve(listener, app_router(state))
-        .await
-        .expect("Server failed");
+    axum::serve(listener, app_router(state)).await?;
+
+    Ok(())
 }

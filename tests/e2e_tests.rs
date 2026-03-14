@@ -52,7 +52,7 @@ async fn test_full_ingest_and_search_flow() {
         prometheus_handle,
     };
 
-    let server = TestServer::new(app_router(state)).unwrap();
+    let server = TestServer::new(app_router(state));
 
     // 6. Test Ingest
     let ingest_resp = server

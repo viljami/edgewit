@@ -1,10 +1,11 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.1.0",
   "info": {
     "title": "Edgewit API",
     "description": "Lightweight, Rust-based search and analytics engine for edge environments. Implements a focused subset of the OpenSearch API.",
     "license": {
-      "name": ""
+      "name": "MIT",
+      "identifier": "MIT"
     },
     "version": "0.1.0"
   },
@@ -37,18 +38,6 @@
         ],
         "summary": "Handler for OpenSearch compatible bulk ingestion",
         "operationId": "bulk_handler",
-        "requestBody": {
-          "description": "",
-          "content": {
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "Bulk documents ingested successfully",
@@ -95,20 +84,13 @@
         "summary": "OpenSearch `/_search` endpoint (searches all indices)",
         "operationId": "global_search_handler",
         "requestBody": {
-          "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/SearchRequestBody"
-                  }
-                ],
-                "nullable": true
+                "$ref": "#/components/schemas/SearchRequestBody"
               }
             }
-          },
-          "required": false
+          }
         },
         "responses": {
           "200": {
@@ -140,9 +122,7 @@
     },
     "/metrics": {
       "get": {
-        "tags": [
-          "crate"
-        ],
+        "tags": [],
         "operationId": "metrics_handler",
         "responses": {
           "200": {
@@ -176,18 +156,6 @@
             }
           }
         ],
-        "requestBody": {
-          "description": "",
-          "content": {
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "201": {
             "description": "Document ingested successfully",
@@ -223,20 +191,13 @@
           }
         ],
         "requestBody": {
-          "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/SearchRequestBody"
-                  }
-                ],
-                "nullable": true
+                "$ref": "#/components/schemas/SearchRequestBody"
               }
             }
-          },
-          "required": false
+          }
         },
         "responses": {
           "200": {
@@ -337,25 +298,23 @@
       "SearchRequestBody": {
         "type": "object",
         "properties": {
-          "aggs": {
-            "nullable": true
-          },
+          "aggs": {},
           "from": {
-            "type": "integer",
-            "nullable": true,
+            "type": [
+              "integer",
+              "null"
+            ],
             "minimum": 0
           },
-          "query": {
-            "nullable": true
-          },
+          "query": {},
           "size": {
-            "type": "integer",
-            "nullable": true,
+            "type": [
+              "integer",
+              "null"
+            ],
             "minimum": 0
           },
-          "sort": {
-            "nullable": true
-          }
+          "sort": {}
         }
       },
       "ShardsInfo": {

@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use bytes::Bytes;
 use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
@@ -25,7 +24,7 @@ use crate::wal::{IngestEvent, WalRequest};
 pub async fn ingest_doc_handler(
     State(state): State<AppState>,
     Path(index): Path<String>,
-    body: Bytes,
+    body: String,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
     metrics::counter!("edgewit_ingest_requests_total").increment(1);
     metrics::counter!("edgewit_ingest_bytes_total").increment(body.len() as u64);
@@ -35,7 +34,7 @@ pub async fn ingest_doc_handler(
     let req = WalRequest {
         event: IngestEvent {
             index: index.clone(),
-            payload: body.to_vec(),
+            payload: body.into_bytes(),
         },
         responder: tx,
     };
@@ -79,13 +78,13 @@ pub async fn ingest_doc_handler(
 )]
 pub async fn bulk_handler(
     State(state): State<AppState>,
-    body: Bytes,
+    body: String,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, String)> {
     metrics::counter!("edgewit_ingest_requests_total").increment(1);
     metrics::counter!("edgewit_ingest_bytes_total").increment(body.len() as u64);
 
-    let payload_str = std::str::from_utf8(&body)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UTF-8".to_string()))?;
+    let payload_str = &body;
+
     let mut lines = payload_str.lines().filter(|l| !l.trim().is_empty());
 
     let mut receivers = Vec::new();
@@ -100,9 +99,8 @@ pub async fn bulk_handler(
             .unwrap_or("default")
             .to_string();
 
-        let doc_line = match lines.next() {
-            Some(l) => l,
-            None => break,
+        let Some(doc_line) = lines.next() else {
+            break;
         };
 
         let (tx, rx) = oneshot::channel();
@@ -130,12 +128,11 @@ pub async fn bulk_handler(
     let mut has_errors = false;
 
     for (i, rx) in receivers.into_iter().enumerate() {
-        let status = match rx.await {
-            Ok(Ok(_)) => 201,
-            _ => {
-                has_errors = true;
-                500
-            }
+        let status = if let Ok(Ok(_)) = rx.await {
+            201
+        } else {
+            has_errors = true;
+            500
         };
         items.push(json!({"index": {"_index": indices[i], "status": status}}));
     }
@@ -170,7 +167,7 @@ mod tests {
                 .handle(),
         };
         let app = app_router(state);
-        let server = TestServer::new(app).unwrap();
+        let server = TestServer::new(app);
         (server, rx)
     }
 

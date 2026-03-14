@@ -32,16 +32,15 @@ pub fn build_schema() -> Schema {
 /// Opens an existing Tantivy index or creates a new one at the specified path
 pub fn setup_index(data_dir: &Path) -> Result<Index, String> {
     let index_dir = data_dir.join("index");
-    std::fs::create_dir_all(&index_dir)
-        .map_err(|e| format!("Failed to create index dir: {}", e))?;
+    std::fs::create_dir_all(&index_dir).map_err(|e| format!("Failed to create index dir: {e}"))?;
 
     let schema = build_schema();
 
     // We use MmapDirectory for edge performance; Linux gracefully handles paging it into memory
     let dir = tantivy::directory::MmapDirectory::open(&index_dir)
-        .map_err(|e| format!("Failed to open directory: {}", e))?;
+        .map_err(|e| format!("Failed to open directory: {e}"))?;
 
-    Index::open_or_create(dir, schema).map_err(|e| format!("Failed to open index: {}", e))
+    Index::open_or_create(dir, schema).map_err(|e| format!("Failed to open index: {e}"))
 }
 
 /// Parses the raw HTTP payload and adds it to the Tantivy memory buffer
@@ -51,8 +50,8 @@ pub fn add_to_index(
     event: IngestEvent,
 ) -> Result<(), String> {
     // Parse the incoming payload as a JSON value
-    let source_val: serde_json::Value = serde_json::from_slice(&event.payload)
-        .map_err(|e| format!("Invalid JSON payload: {}", e))?;
+    let source_val: serde_json::Value =
+        serde_json::from_slice(&event.payload).map_err(|e| format!("Invalid JSON payload: {e}"))?;
 
     if !source_val.is_object() {
         return Err("Payload must be a JSON object".to_string());
@@ -63,14 +62,14 @@ pub fn add_to_index(
     root_doc.insert("_index".to_string(), serde_json::Value::String(event.index));
     root_doc.insert("_source".to_string(), source_val);
 
-    let doc_str = serde_json::to_string(&root_doc).unwrap();
+    let doc_str = serde_json::to_string(&root_doc).map_err(|e| e.to_string())?;
 
     let doc = TantivyDocument::parse_json(schema, &doc_str)
-        .map_err(|e| format!("Failed to parse document: {}", e))?;
+        .map_err(|e| format!("Failed to parse document: {e}"))?;
 
     writer
         .add_document(doc)
-        .map_err(|e| format!("Tantivy write error: {}", e))?;
+        .map_err(|e| format!("Tantivy write error: {e}"))?;
 
     Ok(())
 }
@@ -123,7 +122,7 @@ impl IndexerActor {
                     latest_wal_offset = req.wal_offset;
 
                     if let Err(e) = add_to_index(&mut self.writer, &self.schema, req.event) {
-                        error!("Failed to index document: {}", e);
+                        error!("Failed to index document: {e}");
                     } else {
                         docs_since_commit += 1;
                     }
@@ -154,10 +153,10 @@ impl IndexerActor {
                 commit.set_payload(&offset.to_string());
                 match commit.commit() {
                     Ok(_) => info!("Committed index segment at WAL offset {}", offset),
-                    Err(e) => error!("Failed to commit index segment: {}", e),
+                    Err(e) => error!("Failed to commit index segment: {e}"),
                 }
             }
-            Err(e) => error!("Failed to prepare index commit: {}", e),
+            Err(e) => error!("Failed to prepare index commit: {e}"),
         }
     }
 }

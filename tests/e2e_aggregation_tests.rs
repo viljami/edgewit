@@ -84,7 +84,7 @@ async fn test_complex_aggregation_search() {
         prometheus_handle,
     };
 
-    let server = Arc::new(TestServer::new(app_router(state)).unwrap());
+    let server = Arc::new(TestServer::new(app_router(state)));
 
     // 6. Ingest 10000 items rapidly
     let total_events = 10000;

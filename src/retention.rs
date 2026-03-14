@@ -103,11 +103,17 @@ pub async fn run_compaction_and_retention_worker(
             committed_offset = offset;
         }
 
-        cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes);
+        if let Err(e) = cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes) {
+            warn!("Cleanup wals failed: {e}");
+        }
     }
 }
 
-fn cleanup_wals(data_dir: &PathBuf, committed_offset: u64, max_wal_bytes: u64) {
+fn cleanup_wals(
+    data_dir: &PathBuf,
+    committed_offset: u64,
+    max_wal_bytes: u64,
+) -> Result<(), std::io::Error> {
     if let Ok(entries) = std::fs::read_dir(data_dir) {
         let mut wal_files = Vec::new();
         let mut total_wal_size = 0;
@@ -119,7 +125,7 @@ fn cleanup_wals(data_dir: &PathBuf, committed_offset: u64, max_wal_bytes: u64) {
                 && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
                 && let Ok(start_offset) = u64::from_str_radix(file_stem, 16)
             {
-                let size = entry.metadata().unwrap().len();
+                let size = entry.metadata()?.len();
                 wal_files.push((start_offset, path, size));
                 total_wal_size += size;
             }
@@ -165,6 +171,8 @@ fn cleanup_wals(data_dir: &PathBuf, committed_offset: u64, max_wal_bytes: u64) {
             }
         }
     }
+
+    Ok(())
 }
 
 fn get_dir_size(path: &std::path::Path) -> u64 {
@@ -243,7 +251,7 @@ mod tests {
         // - 0.wal (ends at 100) -> 100 <= 150, should be deleted
         // - 100.wal (ends at 150) -> 150 <= 150, should be deleted
         // - 150.wal (ends at 350) -> 350 > 150, should be kept
-        cleanup_wals(&dir_path, 150, 1000);
+        cleanup_wals(&dir_path, 150, 1000).expect("wal cleanup failed");
 
         // Check which files exist
         assert!(!dir_path.join("0000000000000000.wal").exists());
@@ -275,7 +283,7 @@ mod tests {
         // This should trigger emergency pruning. It will delete oldest (0.wal) first.
         // New size = 500. Still > 400. Deletes 100.wal.
         // New size = 300. <= 400. Stops.
-        cleanup_wals(&dir_path, 0, 400);
+        cleanup_wals(&dir_path, 0, 400).expect("wal cleanup failed");
 
         assert!(!dir_path.join("0000000000000000.wal").exists());
         assert!(!dir_path.join("0000000000000064.wal").exists());

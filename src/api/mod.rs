@@ -76,13 +76,13 @@ pub fn app_router(state: AppState) -> Router {
         .route("/_stats", get(cluster::stats_handler))
         .route("/metrics", get(metrics_handler))
         .route("/_bulk", post(ingest::bulk_handler))
-        .route("/:index/_doc", post(ingest::ingest_doc_handler))
+        .route("/{index}/_doc", post(ingest::ingest_doc_handler))
         .route(
             "/_search",
             get(search::global_search_handler).post(search::global_search_handler),
         )
         .route(
-            "/:index/_search",
+            "/{index}/_search",
             get(search::index_search_handler).post(search::index_search_handler),
         )
         .route_layer(axum::middleware::from_fn(auth::auth_middleware))
