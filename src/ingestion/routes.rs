@@ -158,10 +158,13 @@ mod tests {
 
     fn setup_test_server() -> (TestServer, mpsc::Receiver<WalRequest>) {
         let (tx, rx) = mpsc::channel(100);
-        let index = tantivy::Index::create_in_ram(crate::indexer::build_schema());
         let state = AppState {
             wal_sender: tx,
-            index_reader: index.reader().unwrap(),
+            index_manager: crate::index_manager::IndexManager::new(
+                std::path::PathBuf::from("/tmp"),
+                crate::registry::IndexRegistry::new(),
+                20,
+            ),
             prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
                 .build_recorder()
                 .handle(),

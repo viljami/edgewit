@@ -4,7 +4,6 @@ use crate::schema::definition::PartitionStrategy;
 use chrono::Utc;
 use std::path::PathBuf;
 use std::time::Duration;
-use tantivy::Index;
 use tracing::{info, warn};
 
 pub struct RetentionConfig {
@@ -64,7 +63,6 @@ fn parse_size(size_str: &str) -> Option<u64> {
 
 pub async fn run_compaction_and_retention_worker(
     data_dir: PathBuf,
-    index: Index,
     config: RetentionConfig,
     registry: IndexRegistry,
 ) {
@@ -76,20 +74,18 @@ pub async fn run_compaction_and_retention_worker(
 
         apply_partition_retention(&data_dir, &registry).await;
 
-        let index_dir = data_dir.join("index");
+        let indexes_dir = data_dir.join("indexes");
 
-        // 1. Calculate Index Size
-        let index_size = get_dir_size(&index_dir);
+        // 1. Calculate Total Indexes Size
+        let index_size = get_dir_size(&indexes_dir);
         if index_size > config.max_index_bytes {
             warn!(
-                "Index size {} exceeds limit {}. In a full edge deployment we would drop oldest documents here.",
+                "Indexes size {} exceeds limit {}. Older partitions will be dropped by retention policies.",
                 index_size, config.max_index_bytes
             );
-            // TODO: Delete oldest documents. For now, since Tantivy doesn't easily support age-based dropping
-            // without a time field, we rely on the operator to use the API or rotate indices.
         } else {
             info!(
-                "Index size: {} bytes (Limit: {})",
+                "Indexes size: {} bytes (Limit: {})",
                 index_size, config.max_index_bytes
             );
         }
@@ -101,14 +97,8 @@ pub async fn run_compaction_and_retention_worker(
             wal_size, config.max_wal_bytes
         );
 
-        // Let's get the last committed WAL offset from the index
-        let mut committed_offset = 0;
-        if let Ok(metas) = index.load_metas()
-            && let Some(payload) = metas.payload
-            && let Ok(offset) = payload.parse::<u64>()
-        {
-            committed_offset = offset;
-        }
+        // TODO: Scan all partition meta.jsons to find the globally safe minimum committed offset
+        let committed_offset = 0;
 
         if let Err(e) = cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes) {
             warn!("Cleanup wals failed: {e}");

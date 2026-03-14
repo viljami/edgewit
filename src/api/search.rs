@@ -302,7 +302,7 @@ pub async fn global_search_handler(
         .unwrap_or(10);
 
     let aggs = body.as_ref().and_then(|b| b.aggs.clone());
-    let reader = state.index_reader.clone(); // Assumes index_reader is added to AppState
+    let reader = state.index_manager.get_reader("logs", "default").unwrap(); // Assumes index_reader is added to AppState
 
     match execute_search(&reader, &query_str, None, from, size, aggs) {
         Ok(resp) => axum::response::Json(resp).into_response(),
@@ -343,9 +343,9 @@ pub async fn index_search_handler(
         .unwrap_or(10);
 
     let aggs = body.as_ref().and_then(|b| b.aggs.clone());
-    let reader = state.index_reader.clone();
+    let reader = state.index_manager.get_reader(&index, "default").unwrap();
 
-    match execute_search(&reader, &query_str, Some(&index), from, size, aggs) {
+    match execute_search(&reader, &query_str, Some(&index.clone()), from, size, aggs) {
         Ok(resp) => axum::response::Json(resp).into_response(),
         Err(e) => {
             error!("Search failed for index {}: {}", index, e);
@@ -361,25 +361,20 @@ pub async fn index_search_handler(
 #[cfg(test)]
 mod tests {
     use crate::api::{AppState, app_router};
-    use crate::indexer::build_schema;
     use axum_test::TestServer;
     use tantivy::Index;
     use tokio::sync::mpsc;
 
     fn setup_test_server() -> TestServer {
         let (tx, _rx) = mpsc::channel(100);
-        let schema = build_schema();
-        let index = Index::create_in_ram(schema.clone());
-        let mut writer = index.writer(15_000_000).unwrap();
-
-        let doc_str = r#"{"_index": "test_idx", "_source": {"message": "hello edgewit"}}"#;
-        let doc = tantivy::TantivyDocument::parse_json(&schema, doc_str).unwrap();
-        writer.add_document(doc).unwrap();
-        writer.commit().unwrap();
 
         let state = AppState {
             wal_sender: tx,
-            index_reader: index.reader().unwrap(),
+            index_manager: crate::index_manager::IndexManager::new(
+                std::path::PathBuf::from("/tmp"),
+                crate::registry::IndexRegistry::new(),
+                20,
+            ),
             prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
                 .build_recorder()
                 .handle(),

@@ -124,10 +124,10 @@ pub async fn health_handler() -> Json<HealthResponse> {
         (status = 200, description = "Cluster and index statistics", body = StatsResponse)
     )
 )]
-pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse> {
-    let searcher = state.index_reader.searcher();
-    let num_docs = searcher.num_docs();
-    let num_segments = searcher.segment_readers().len() as u32;
+pub async fn stats_handler(State(_state): State<AppState>) -> Json<StatsResponse> {
+    // TODO: Calculate from index manager per partition
+    let num_docs = 0;
+    let num_segments = 0;
 
     metrics::gauge!("edgewit_index_docs_total").set(num_docs as f64);
     metrics::gauge!("edgewit_index_segments_total").set(f64::from(num_segments));
@@ -167,8 +167,8 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
     )
 )]
 pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatIndex>> {
-    let searcher = state.index_reader.searcher();
-    let num_docs = searcher.num_docs();
+    // TODO: Calculate from index manager per partition
+    let num_docs = 0;
 
     let mut indices = Vec::new();
     let registered = state.registry.list();
@@ -219,10 +219,13 @@ mod tests {
 
     fn setup_test_server() -> TestServer {
         let (tx, _rx) = mpsc::channel(100);
-        let index = tantivy::Index::create_in_ram(crate::indexer::build_schema());
         let state = AppState {
             wal_sender: tx,
-            index_reader: index.reader().unwrap(),
+            index_manager: crate::index_manager::IndexManager::new(
+                PathBuf::from("/tmp"),
+                IndexRegistry::new(),
+                20,
+            ),
             prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
                 .build_recorder()
                 .handle(),

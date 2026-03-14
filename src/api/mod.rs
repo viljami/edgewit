@@ -29,15 +29,15 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     state.prometheus_handle.render()
 }
 
+use crate::index_manager::IndexManager;
 use crate::registry::IndexRegistry;
-use crate::wal::WalRequest;
 use std::path::PathBuf;
-use tantivy::IndexReader;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub wal_sender: tokio::sync::mpsc::Sender<WalRequest>,
-    pub index_reader: IndexReader,
+    pub wal_sender: mpsc::Sender<crate::wal::WalRequest>,
+    pub index_manager: IndexManager,
     pub prometheus_handle: metrics_exporter_prometheus::PrometheusHandle,
     pub registry: IndexRegistry,
     pub data_dir: PathBuf,

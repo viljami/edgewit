@@ -38,6 +38,8 @@ async fn setup_app() -> (TestServer, TempDir) {
         wal_sender: wal_tx,
         index_reader,
         prometheus_handle,
+        registry: crate::registry::IndexRegistry::new(),
+        data_dir: std::path::PathBuf::from("/tmp"),
     };
 
     let server = TestServer::new(app_router(state));

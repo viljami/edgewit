@@ -1,6 +1,8 @@
 use axum_test::TestServer;
 use edgewit::api::{AppState, app_router};
-use edgewit::indexer::{IndexerActor, setup_index};
+use edgewit::index_manager::IndexManager;
+use edgewit::indexer::IndexerActor;
+use edgewit::registry::IndexRegistry;
 use edgewit::wal::WalAppender;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use serde_json::json;
@@ -18,18 +20,28 @@ async fn test_full_ingest_and_search_flow() {
     let temp_dir = TempDir::new().unwrap();
     let data_dir = temp_dir.path().to_path_buf();
 
-    // 1. Setup Tantivy Index
-    let index = setup_index(&data_dir).expect("Failed to setup Tantivy index");
-    let writer = index
-        .writer(15_000_000)
-        .expect("Failed to create IndexWriter");
+    let registry = IndexRegistry::new();
+    let mut def = edgewit::schema::definition::IndexDefinition {
+        name: "e2e-index".to_string(),
+        description: None,
+        timestamp_field: "timestamp".to_string(),
+        mode: edgewit::schema::definition::SchemaMode::Dynamic,
+        partition: edgewit::schema::definition::PartitionStrategy::None,
+        retention: None,
+        compression: edgewit::schema::definition::CompressionOption::Zstd,
+        fields: std::collections::HashMap::new(),
+        settings: std::collections::HashMap::new(),
+    };
+    registry.register(def).unwrap();
+
+    let index_manager = IndexManager::new(data_dir.clone(), registry.clone(), 20);
 
     // 2. Initialize Channels
     let (wal_tx, wal_rx) = mpsc::channel(100);
     let (idx_tx, idx_rx) = mpsc::channel(100);
 
     // 3. Spawn Indexer Thread
-    let indexer = IndexerActor::new(writer, index.schema(), idx_rx);
+    let indexer = IndexerActor::new(index_manager.clone(), registry.clone(), idx_rx, 15);
     tokio::spawn(async move {
         indexer.run().await;
     });
@@ -41,17 +53,16 @@ async fn test_full_ingest_and_search_flow() {
     });
 
     // 5. Setup AppState
-    let index_reader = index.reader().unwrap();
     // In tests we should not use install_recorder if we run multiple tests. But here we have one main test.
     // Try building a stand-alone recorder for axum if possible. If not, install_recorder should be fine in a single test environment.
-    let prometheus_handle = PrometheusBuilder::new().build_recorder().handle();
-
+    // 5. Setup Router and Test Server
+    let prometheus_handle = PrometheusBuilder::new().install_recorder().unwrap();
     let state = AppState {
         wal_sender: wal_tx,
-        index_reader: index_reader.clone(),
+        index_manager,
         prometheus_handle,
-        registry: edgewit::registry::IndexRegistry::new(),
-        data_dir: std::path::PathBuf::from("/tmp"),
+        registry,
+        data_dir,
     };
 
     let server = TestServer::new(app_router(state));
