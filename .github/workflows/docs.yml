@@ -34,11 +34,10 @@ jobs:
       - name: Setup cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "edgewit -> target"
+          workspaces: ". -> target"
 
       - name: Generate OpenAPI Spec
         # Runs the utility binary to dump the JSON to docs/openapi.json
-        working-directory: ./edgewit
         run: cargo run --bin generate_openapi
 
       - name: Setup Pages
@@ -48,7 +47,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository's docs folder
-          path: "./edgewit/docs"
+          path: "./docs"
 
       - name: Deploy to GitHub Pages
         id: deployment
