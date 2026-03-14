@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod cluster;
-pub mod ingest;
 pub mod search;
 
 use axum::{
@@ -10,8 +9,10 @@ use axum::{
 use utoipa::OpenApi;
 
 pub use cluster::*;
-pub use ingest::*;
 pub use search::*;
+
+use crate::ingestion::routes as ingest;
+pub use crate::ingestion::routes::*;
 
 use axum::extract::State;
 use axum::response::IntoResponse;

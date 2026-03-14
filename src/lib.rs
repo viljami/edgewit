@@ -1,7 +1,7 @@
 pub mod api;
-pub mod index_definition;
 pub mod indexer;
+pub mod ingestion;
 pub mod registry;
 pub mod retention;
-pub mod schema_builder;
+pub mod schema;
 pub mod wal;

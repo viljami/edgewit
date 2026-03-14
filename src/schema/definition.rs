@@ -3,47 +3,37 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
+use crate::schema::validation::{ValidationError, validate_schema};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SchemaMode {
     Strict,
     DropUnmapped,
+    #[default]
     Dynamic,
-}
-
-impl Default for SchemaMode {
-    fn default() -> Self {
-        SchemaMode::Dynamic
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum PartitionStrategy {
+    #[default]
     None,
     Daily,
     Hourly,
     Monthly,
 }
 
-impl Default for PartitionStrategy {
-    fn default() -> Self {
-        PartitionStrategy::None
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CompressionOption {
     None,
+    #[default]
     Zstd,
     Lz4,
-}
-
-impl Default for CompressionOption {
-    fn default() -> Self {
-        CompressionOption::Zstd
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -96,69 +86,22 @@ fn default_timestamp_field() -> String {
     "timestamp".to_string()
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ValidationError {
-    #[error("timestamp field '{0}' is required for partitioning but missing from fields")]
-    MissingTimestampField(String),
-    #[error("retention format invalid: {0}")]
-    InvalidRetentionFormat(String),
-    #[error("failed to read file: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("failed to parse yaml: {0}")]
-    YamlError(#[from] serde_yaml::Error),
-}
-
 impl IndexDefinition {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ValidationError> {
         let content = fs::read_to_string(path)?;
         let def: IndexDefinition = serde_yaml::from_str(&content)?;
-        def.validate()?;
+        validate_schema(&def)?;
         Ok(def)
     }
 
     pub fn validate(&self) -> Result<(), ValidationError> {
-        if self.partition != PartitionStrategy::None {
-            if !self.fields.contains_key(&self.timestamp_field) {
-                return Err(ValidationError::MissingTimestampField(
-                    self.timestamp_field.clone(),
-                ));
-            }
-        }
-
-        if let Some(ref retention) = self.retention {
-            if !is_valid_retention(retention) {
-                return Err(ValidationError::InvalidRetentionFormat(retention.clone()));
-            }
-        }
-
-        Ok(())
+        validate_schema(self)
     }
-}
-
-fn is_valid_retention(retention: &str) -> bool {
-    if retention.is_empty() {
-        return false;
-    }
-    let (num_part, unit_part) = retention.split_at(retention.len() - 1);
-    num_part.parse::<u64>().is_ok() && matches!(unit_part, "s" | "m" | "h" | "d" | "w" | "M" | "Y")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_valid_retention() {
-        assert!(is_valid_retention("7d"));
-        assert!(is_valid_retention("14d"));
-        assert!(is_valid_retention("1M"));
-        assert!(is_valid_retention("12h"));
-
-        assert!(!is_valid_retention("7"));
-        assert!(!is_valid_retention("d"));
-        assert!(!is_valid_retention("7days"));
-        assert!(!is_valid_retention("-7d"));
-    }
 
     #[test]
     fn test_parse_valid_yaml() {
@@ -190,23 +133,5 @@ fields:
         assert!(def.fields.contains_key("timestamp"));
 
         assert!(def.validate().is_ok());
-    }
-
-    #[test]
-    fn test_missing_timestamp_field_when_partitioned() {
-        let yaml = r#"
-name: logs
-timestamp_field: created_at
-partition: daily
-fields:
-  message:
-    type: text
-"#;
-        let def: IndexDefinition = serde_yaml::from_str(yaml).unwrap();
-        let result = def.validate();
-        assert!(matches!(
-            result,
-            Err(ValidationError::MissingTimestampField(_))
-        ));
     }
 }

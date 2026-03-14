@@ -3,7 +3,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use crate::index_definition::{IndexDefinition, ValidationError};
+use crate::schema::definition::IndexDefinition;
+use crate::schema::validation::ValidationError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RegistryError {
@@ -109,25 +110,24 @@ impl IndexRegistry {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() {
-                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    if file_name.ends_with(".index.yaml") || file_name.ends_with(".index.yml") {
-                        let def = IndexDefinition::from_file(&path)?;
-                        match self.register(def) {
-                            Ok(_) => {
-                                tracing::info!("Loaded index definition: {}", file_name);
-                                count += 1;
-                            }
-                            Err(RegistryError::AlreadyExists(name)) => {
-                                tracing::warn!(
-                                    "Index '{}' already registered, skipping {}",
-                                    name,
-                                    file_name
-                                );
-                            }
-                            Err(e) => return Err(e),
-                        }
+            if path.is_file()
+                && let Some(file_name) = path.file_name().and_then(|n| n.to_str())
+                && (file_name.ends_with(".index.yaml") || file_name.ends_with(".index.yml"))
+            {
+                let def = IndexDefinition::from_file(&path)?;
+                match self.register(def) {
+                    Ok(_) => {
+                        tracing::info!("Loaded index definition: {}", file_name);
+                        count += 1;
                     }
+                    Err(RegistryError::AlreadyExists(name)) => {
+                        tracing::warn!(
+                            "Index '{}' already registered, skipping {}",
+                            name,
+                            file_name
+                        );
+                    }
+                    Err(e) => return Err(e),
                 }
             }
         }
@@ -139,7 +139,7 @@ impl IndexRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::index_definition::{
+    use crate::schema::definition::{
         CompressionOption, FieldDefinition, FieldType, PartitionStrategy, SchemaMode,
     };
     use tempfile::tempdir;

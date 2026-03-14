@@ -4,7 +4,7 @@ use tantivy::schema::{
 };
 use thiserror::Error;
 
-use crate::index_definition::{FieldType, IndexDefinition, SchemaMode};
+use crate::schema::definition::{FieldType, IndexDefinition, SchemaMode};
 
 #[derive(Debug, Error)]
 pub enum SchemaBuilderError {
@@ -139,7 +139,7 @@ pub fn build_schema(definition: &IndexDefinition) -> Result<Schema, SchemaBuilde
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::index_definition::{CompressionOption, FieldDefinition, PartitionStrategy};
+    use crate::schema::definition::{CompressionOption, FieldDefinition, PartitionStrategy};
     use std::collections::HashMap;
 
     #[test]
