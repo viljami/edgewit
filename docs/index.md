@@ -8,9 +8,9 @@ title: Home
 
 Edgewit provides powerful full-text search and aggregations for local observability, offline log analytics, and IoT gateway diagnostics. It avoids the memory overhead and operational complexity of a centralized cloud solution by running efficiently on constrained hardware like the Raspberry Pi.
 
-*   **Edge-First:** Runs deterministically under 150MB of memory.
-*   **OpenSearch Compatible (Subset):** Drop-in replacement for basic log collection agents, implementing a focused subset of the API.
-*   **Crash-Resilient:** Custom WAL implementation built for slow SD cards.
+- **Edge-First:** Runs deterministically under 150MB of memory.
+- **OpenSearch Compatible (Subset):** Drop-in replacement for basic log collection agents, implementing a focused subset of the API.
+- **Crash-Resilient:** Custom WAL implementation built for slow SD cards.
 </section>
 
 <section id="quickstart" class="card" markdown="1">
@@ -54,10 +54,12 @@ Query your logs using Lucene/OpenSearch syntax:
 ```bash
 curl -X GET "http://localhost:9200/_search?q=_source.level:INFO"
 ```
+
 </section>
 
 <section id="configuration" class="card" markdown="1">
 ## Configuration & API
 
-Check out the [Configuration Guide]({{ site.baseurl }}/configuration) and the [API Specification]({{ site.baseurl }}/api).
+Check out the [Configuration Guide]({{ '/configuration/' | relative_url }}) and the [API Specification]({{ '/api/' | relative_url }}).
+
 </section>

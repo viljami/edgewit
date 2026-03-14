@@ -1,7 +1,17 @@
 title: Edgewit
 description: A lightweight, Rust-based search and analytics engine for edge environments.
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "" # the base hostname & protocol for your site, e.g. http://example.com
+
+# GitHub Pages automatically configures url and baseurl,
+# keeping them empty prevents accidental overrides.
+baseurl: ""
+url: ""
+
+github_username: viljami
+
+# Using custom layouts in _layouts/default.html instead of a pre-built theme
+# theme: minima
+
+permalink: pretty
 
 # Build settings
 markdown: kramdown

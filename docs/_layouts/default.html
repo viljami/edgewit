@@ -3,7 +3,10 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{% if page.title %}{{ page.title }} | {% endif %}Edgewit Documentation</title>
+        <title>
+            {% if page.title %}{{ page.title }} | {% endif %}Edgewit
+            Documentation
+        </title>
         <style>
             :root {
                 --primary: #ff5e00;
@@ -98,7 +101,8 @@
                 margin-top: 1rem;
                 margin-bottom: 1rem;
             }
-            th, td {
+            th,
+            td {
                 padding: 0.75rem;
                 text-align: left;
                 border-bottom: 1px solid #444;
@@ -123,17 +127,27 @@
                 environments.
             </p>
             <div class="nav">
-                <a href="{{ site.baseurl }}/" class="btn">Home</a>
-                <a href="{{ site.baseurl }}/configuration" class="btn">Configuration</a>
-                <a href="{{ site.baseurl }}/api" class="btn">API Spec</a>
-                <a href="{{ site.baseurl }}/benchmark" class="btn">Benchmarks</a>
-                <a href="{{ site.baseurl }}/security" class="btn">Security Model</a>
-                <a href="https://github.com/viljami/edgewit" class="btn" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a href="{{ '/' | relative_url }}" class="btn">Home</a>
+                <a href="{{ '/configuration/' | relative_url }}" class="btn"
+                    >Configuration</a
+                >
+                <a href="{{ '/api/' | relative_url }}" class="btn">API Spec</a>
+                <a href="{{ '/benchmark/' | relative_url }}" class="btn"
+                    >Benchmarks</a
+                >
+                <a href="{{ '/security/' | relative_url }}" class="btn"
+                    >Security Model</a
+                >
+                <a
+                    href="https://github.com/viljami/edgewit"
+                    class="btn"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >GitHub</a
+                >
             </div>
         </header>
 
-        <div class="container">
-            {{ content }}
-        </div>
+        <div class="container">{{ content }}</div>
     </body>
 </html>

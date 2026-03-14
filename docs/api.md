@@ -10,7 +10,7 @@ title: API Documentation
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 <script>
     Redoc.init(
-        "{{ site.baseurl }}/openapi.json",
+        "{{ '/openapi.json' | relative_url }}",
         {
             theme: {
                 colors: {
