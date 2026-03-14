@@ -40,7 +40,7 @@ async fn setup_app() -> (TestServer, TempDir) {
         prometheus_handle,
     };
 
-    let server = TestServer::new(app_router(state)).unwrap();
+    let server = TestServer::new(app_router(state));
 
     (server, temp_dir)
 }

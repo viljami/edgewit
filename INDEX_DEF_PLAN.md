@@ -35,7 +35,7 @@ unique index name
 description (optional)
 human readable description
 
-timestamp_field (optional)
+timestamp_field (optional) = default is "timestamp"
 explicit field name used for time partitioning and retention routing (required if partitioning enabled)
 
 mode (optional)
@@ -229,7 +229,7 @@ Edgewit converts API definitions into persistent index definition files.
 
 IMPLEMENTATION PLAN
 
-PHASE 1 FILE PARSER
+PHASE 1 FILE PARSER (COMPLETED)
 
 goals
 implement parser for index definition files
@@ -248,7 +248,7 @@ FieldDefinition struct
 partition and retention enums
 validation system
 
-PHASE 2 INDEX REGISTRY
+PHASE 2 INDEX REGISTRY (COMPLETED)
 
 goals
 central index management
@@ -265,7 +265,7 @@ IndexRegistry module
 index lookup system
 index configuration cache
 
-PHASE 3 SCHEMA INTEGRATION
+PHASE 3 SCHEMA INTEGRATION (COMPLETED)
 
 goals
 convert index definitions to search engine schema

@@ -21,6 +21,14 @@ This guide details all available configuration parameters, with a special focus 
 
 ---
 
+## Index & API Management
+
+| Variable                               | Default | Description                                                                                                                                                                                                                                                                         |
+| :------------------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EDGEWIT_API_INDEX_MANAGEMENT_ENABLED` | `true`  | When `true`, users can dynamically create, update, and delete indexes (and their underlying schema) via the HTTP API (`PUT /indexes`, `DELETE /indexes`). When set to `false`, the API becomes read-only and schemas are strictly loaded from local `.index.yaml` files on startup. |
+
+---
+
 ## Retention & Disk Management
 
 To ensure Edgewit operates predictably without exhausting the local disk (often an SD card in edge deployments), strict size thresholds can be configured.
