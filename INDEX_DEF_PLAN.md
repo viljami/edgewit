@@ -296,7 +296,7 @@ deliverables
 ingestion validation layer
 schema enforcement
 
-PHASE 5 PARTITION MANAGEMENT
+PHASE 5 PARTITION MANAGEMENT (COMPLETED)
 
 goals
 support time partitioned indexes

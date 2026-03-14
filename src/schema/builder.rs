@@ -193,10 +193,18 @@ mod tests {
 
         let schema = build_schema(&def).unwrap();
 
-        let timestamp_field = schema.get_field("timestamp").unwrap();
-        let message_field = schema.get_field("message").unwrap();
-        let status_field = schema.get_field("status").unwrap();
-        let source_field = schema.get_field("_source").unwrap();
+        let _ = schema
+            .get_field("timestamp")
+            .expect("failed to get field timestamp");
+        let _ = schema
+            .get_field("message")
+            .expect("failed to get field message");
+        let _ = schema
+            .get_field("status")
+            .expect("failed to get field status");
+        let _ = schema
+            .get_field("_source")
+            .expect("failed to get field _source");
 
         assert!(schema.get_field("timestamp").is_ok());
         assert!(schema.get_field("_source").is_ok());
