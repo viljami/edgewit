@@ -52,24 +52,24 @@ impl WalAppender {
     pub fn run(mut self) {
         // Ensure the directory exists
         if let Err(e) = std::fs::create_dir_all(&self.dir) {
-            error!("Failed to create WAL directory at {:?}: {}", self.dir, e);
+            error!("Failed to create WAL directory at {:?}: {e}", self.dir);
             return;
         }
 
         let mut current_file_start_offset = self.current_offset;
         let mut wal_path = self
             .dir
-            .join(format!("{:016x}.wal", current_file_start_offset));
+            .join(format!("{current_file_start_offset:016x}.wal"));
 
         let file = match OpenOptions::new().create(true).append(true).open(&wal_path) {
             Ok(f) => f,
             Err(e) => {
-                error!("Failed to open WAL file {:?}: {}", wal_path, e);
+                error!("Failed to open WAL file {wal_path:?}: {e}");
                 return;
             }
         };
 
-        let mut current_file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+        let mut current_file_size = file.metadata().map_or(0, |m| m.len());
 
         // We use a small buffer. Since we explicitly flush and sync_data() at the end
         // of every batch, this just helps reduce syscall overhead during the batch write.

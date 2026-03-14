@@ -49,7 +49,7 @@ fn parse_size(size_str: &str) -> Option<u64> {
         (&s[..s.len() - 2], 1024 * 1024)
     } else if s.ends_with("KB") {
         (&s[..s.len() - 2], 1024)
-    } else if s.ends_with("B") {
+    } else if s.ends_with('B') {
         (&s[..s.len() - 1], 1)
     } else {
         (s.as_str(), 1)
@@ -63,7 +63,7 @@ pub async fn run_compaction_and_retention_worker(
     index: Index,
     config: RetentionConfig,
 ) {
-    let mut interval = tokio::time::interval(Duration::from_secs(300)); // Run every 5 minutes
+    let mut interval = tokio::time::interval(Duration::from_mins(5)); // Run every 5 minutes
 
     loop {
         interval.tick().await;
