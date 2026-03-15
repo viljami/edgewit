@@ -3,7 +3,7 @@ layout: default
 title: API Documentation
 ---
 
-<div class="card" style="background-color: #ffffff; color: #333333;" markdown="1">
+<div class="card" markdown="1">
 ## Edgewit API
 
 ### Terminology: Indexes vs. Indices
@@ -23,8 +23,9 @@ Edgewit provides several OpenSearch-compatible observability endpoints to monito
 - **`GET /_stats`**: Provides search and ingestion metrics.
 - **`GET /metrics`**: Exposes internal Prometheus-compatible metrics for scraping by systems like Grafana or Datadog.
 
----
+</div>
 
+<div class="card" style="background-color: #ffffff; color: #333333;">
 <div id="redoc-container"></div>
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 <script>
