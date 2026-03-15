@@ -86,6 +86,28 @@ pub struct CatIndex {
     pub pri_store_size: String,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct VersionResponse {
+    pub version: String,
+    pub commit: String,
+    pub build: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/version",
+    responses(
+        (status = 200, description = "Version metadata", body = VersionResponse)
+    )
+)]
+pub async fn version_handler() -> Json<VersionResponse> {
+    Json(VersionResponse {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        commit: env!("GIT_COMMIT_HASH").to_string(),
+        build: env!("BUILD_DATE").to_string(),
+    })
+}
+
 /// Handler for the root endpoint, emulating the default OpenSearch response
 #[utoipa::path(
     get,

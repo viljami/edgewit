@@ -48,6 +48,7 @@ pub struct AppState {
 #[openapi(
     paths(
         cluster::root_handler,
+        cluster::version_handler,
         cluster::health_handler,
         cluster::stats_handler,
         cluster::cat_indexes_handler,
@@ -68,6 +69,7 @@ pub struct AppState {
         cluster::DocsStats,
         cluster::StoreStats,
         cluster::CatIndex,
+        cluster::VersionResponse,
         search::SearchRequestBody,
         crate::schema::definition::IndexDefinition,
         crate::schema::definition::FieldDefinition,
@@ -87,6 +89,7 @@ pub struct ApiDoc;
 pub fn app_router(state: AppState) -> Router {
     Router::new()
         .route("/", get(cluster::root_handler))
+        .route("/version", get(cluster::version_handler))
         .route("/_health", get(cluster::health_handler))
         .route("/_cluster/health", get(cluster::health_handler)) // OpenSearch alias
         .route("/_stats", get(cluster::stats_handler))
