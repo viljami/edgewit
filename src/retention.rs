@@ -156,9 +156,9 @@ fn parse_retention_duration(retention: &str) -> Option<chrono::Duration> {
         "m" => Some(chrono::Duration::minutes(num)),
         "h" => Some(chrono::Duration::hours(num)),
         "d" => Some(chrono::Duration::days(num)),
-        "w" => Some(chrono::Duration::weeks(num)),
+        "w" => Some(chrono::Duration::days(num * 7)),
         "M" => Some(chrono::Duration::days(num * 30)),
-        "Y" => Some(chrono::Duration::days(num * 365)),
+        "y" => Some(chrono::Duration::days(num * 365)),
         _ => None,
     }
 }
@@ -282,6 +282,10 @@ mod tests {
         assert_eq!(
             parse_retention_duration("1M"),
             Some(chrono::Duration::days(30))
+        );
+        assert_eq!(
+            parse_retention_duration("5y"),
+            Some(chrono::Duration::days(1825))
         );
         assert_eq!(parse_retention_duration("invalid"), None);
     }

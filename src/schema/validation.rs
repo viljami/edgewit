@@ -38,7 +38,7 @@ pub fn is_valid_retention(retention: &str) -> bool {
         return false;
     }
     let (num_part, unit_part) = retention.split_at(retention.len() - 1);
-    num_part.parse::<u64>().is_ok() && matches!(unit_part, "s" | "m" | "h" | "d" | "w" | "M" | "Y")
+    num_part.parse::<u64>().is_ok() && matches!(unit_part, "s" | "m" | "h" | "d" | "w" | "M" | "y")
 }
 
 #[cfg(test)]
@@ -53,6 +53,7 @@ mod tests {
         assert!(is_valid_retention("14d"));
         assert!(is_valid_retention("1M"));
         assert!(is_valid_retention("12h"));
+        assert!(is_valid_retention("5y"));
 
         assert!(!is_valid_retention("7"));
         assert!(!is_valid_retention("d"));
