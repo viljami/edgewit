@@ -158,7 +158,7 @@ async fn test_complex_aggregation_search() {
     for _ in 0..20 {
         sleep(Duration::from_millis(500)).await;
 
-        let search_resp = server_arc.get("/e2e-aggs/_search").await;
+        let search_resp = server_arc.get("/indexes/e2e-aggs/_search").await;
 
         let search_json = search_resp.json::<serde_json::Value>();
         actual_hits = search_json["hits"]["total"]["value"].as_u64().unwrap_or(0);
@@ -206,7 +206,10 @@ async fn test_complex_aggregation_search() {
         }
     });
 
-    let search_resp = server_arc.post("/e2e-aggs/_search").json(&aggs_query).await;
+    let search_resp = server_arc
+        .post("/indexes/e2e-aggs/_search")
+        .json(&aggs_query)
+        .await;
 
     search_resp.assert_status_ok();
     let res_json = search_resp.json::<serde_json::Value>();

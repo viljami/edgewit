@@ -108,7 +108,7 @@ async fn test_full_ingest_and_search_flow() {
 
     // 8. Test Search
     let search_resp = server
-        .get("/e2e-index/_search")
+        .get("/indexes/e2e-index/_search")
         .add_query_param("q", "message:hello")
         .await;
 
@@ -125,7 +125,7 @@ async fn test_full_ingest_and_search_flow() {
     );
 
     let search_resp2 = server
-        .get("/e2e-index/_search")
+        .get("/indexes/e2e-index/_search")
         .add_query_param("q", "message:second")
         .await;
 

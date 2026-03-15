@@ -32,15 +32,14 @@ async fn setup_app() -> (TestServer, TempDir) {
         wal_appender.run();
     });
 
-    let index_reader = index.reader().unwrap();
     let prometheus_handle = PrometheusBuilder::new().build_recorder().handle();
 
     let state = AppState {
         wal_sender: wal_tx,
-        index_reader,
+        index_manager,
         prometheus_handle,
-        registry: crate::registry::IndexRegistry::new(),
-        data_dir: std::path::PathBuf::from("/tmp"),
+        registry,
+        data_dir,
     };
 
     let server = TestServer::new(app_router(state));
@@ -121,7 +120,7 @@ fn bench_search(c: &mut Criterion) {
     group.bench_function("match_all", |b| {
         b.to_async(&rt).iter(|| async {
             let resp = server
-                .post("/search-bench/_search")
+                .post("/indexes/search-bench/_search")
                 .json(&match_all_query)
                 .await;
             resp.assert_status_ok();
@@ -143,7 +142,10 @@ fn bench_search(c: &mut Criterion) {
 
     group.bench_function("aggregations", |b| {
         b.to_async(&rt).iter(|| async {
-            let resp = server.post("/search-bench/_search").json(&aggs_query).await;
+            let resp = server
+                .post("/indexes/search-bench/_search")
+                .json(&aggs_query)
+                .await;
             resp.assert_status_ok();
         })
     });

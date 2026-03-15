@@ -102,7 +102,7 @@ pub fn app_router(state: AppState) -> Router {
                 .delete(indexes::delete_index_handler),
         )
         .route(
-            "/{index}/_search",
+            "/indexes/{index}/_search",
             get(search::index_search_handler).post(search::index_search_handler),
         )
         .route_layer(axum::middleware::from_fn(auth::auth_middleware))
