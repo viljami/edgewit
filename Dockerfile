@@ -44,7 +44,7 @@ RUN apt-get update && \
 RUN groupadd -r edgewit && useradd -r -g edgewit -s /bin/false edgewit
 
 # Create the data directory for the WAL and Tantivy segments
-RUN mkdir -p /data && chown edgewit:edgewit /data
+RUN mkdir -p /data/indexes && chown -R edgewit:edgewit /data/indexes
 
 WORKDIR /app
 
