@@ -15,7 +15,7 @@ title: Home
 <section id="about" class="card" markdown="1">
 ## Why Edgewit?
 
-📦 **Container image:** `ghcr.io/viljami/edgewit`
+📦 **Container image:** [`ghcr.io/viljami/edgewit`](https://github.com/viljami/edgewit/pkgs/container/edgewit) (~34MB)
 
 Edgewit provides powerful full-text search and aggregations for local observability, offline log analytics, and IoT gateway diagnostics. It avoids the memory overhead and operational complexity of a centralized cloud solution by running efficiently on constrained hardware like the Raspberry Pi.
 
