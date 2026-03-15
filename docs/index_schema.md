@@ -125,7 +125,7 @@ Every field can be fine-tuned to balance search speed, aggregation capabilities,
 | `indexed`  | `false` | If `true`, the field is added to the inverted index, allowing it to be filtered or searched in the `query` clause of a request.                                                                                                                                                     |
 | `fast`     | `false` | If `true`, the field is stored in a columnar format (FastField). **This is required if you want to sort by the field or run aggregations (stats, terms) on it.** Note: Setting `fast: true` increases RAM usage during queries.                                                     |
 | `stored`   | `false` | If `true`, the individual field value is saved to disk so it can be retrieved separately. **Note:** Edgewit automatically stores the original JSON payload as `_source`. You rarely need to set `stored: true` unless you want to bypass JSON parsing for extreme read performance. |
-| `optional` | `false` | If `false`, the system will enforce that this field exists in every document. (Only applies if `mode` is `strict`).                                                                                                                                                                 |
+| `optional` | `false` | If `false`, the system will enforce that this field exists and is not `null` in every document. (Only applies if `mode` is `strict`). If `true`, the field can be missing entirely or explicitly set to `null` without causing an ingestion error.                                  |
 
 ---
 

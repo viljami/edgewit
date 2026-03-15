@@ -145,7 +145,7 @@ impl IndexerActor {
         // Map explicitly defined fields to the top level for Tantivy to index
         if let serde_json::Value::Object(map) = &source_val {
             for (k, v) in map {
-                if def.fields.contains_key(k) {
+                if def.fields.contains_key(k) && !v.is_null() {
                     root_doc.insert(k.clone(), v.clone());
                 }
             }

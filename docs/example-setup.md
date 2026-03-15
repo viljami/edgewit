@@ -86,12 +86,14 @@ services:
     volumes:
       # Mount the local data directory (containing our logs.index.yaml)
       # to the container's data directory.
-      - ./data:/app/data
+      - ./data:/data
     restart: unless-stopped
     environment:
       # Optional: Disable dynamic index creation via API to lock down the schema
       # EDGEWIT_API_INDEX_MANAGEMENT_ENABLED: "false"
 ```
+
+_Note: Edgewit runs securely as a non-root user inside the container. If you encounter a `Permission denied (os error 13)` error when writing data, ensure your local `./data` directory is writable by the container (e.g., by running `chmod -R 777 ./data` or adjusting the ownership)._
 
 ## 3. Run the Stack
 
