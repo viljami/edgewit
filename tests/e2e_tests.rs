@@ -21,7 +21,21 @@ async fn test_full_ingest_and_search_flow() {
     let data_dir = temp_dir.path().to_path_buf();
 
     let registry = IndexRegistry::new();
-    let mut def = edgewit::schema::definition::IndexDefinition {
+
+    let mut fields = std::collections::HashMap::new();
+    fields.insert(
+        "message".to_string(),
+        edgewit::schema::definition::FieldDefinition {
+            field_type: edgewit::schema::definition::FieldType::Text,
+            indexed: true,
+            stored: false,
+            fast: false,
+            optional: true,
+            default: None,
+        },
+    );
+
+    let def = edgewit::schema::definition::IndexDefinition {
         name: "e2e-index".to_string(),
         description: None,
         timestamp_field: "timestamp".to_string(),
@@ -29,7 +43,7 @@ async fn test_full_ingest_and_search_flow() {
         partition: edgewit::schema::definition::PartitionStrategy::None,
         retention: None,
         compression: edgewit::schema::definition::CompressionOption::Zstd,
-        fields: std::collections::HashMap::new(),
+        fields,
         settings: std::collections::HashMap::new(),
     };
     registry.register(def).unwrap();
@@ -94,8 +108,8 @@ async fn test_full_ingest_and_search_flow() {
 
     // 8. Test Search
     let search_resp = server
-        .get("/_search")
-        .add_query_param("q", "_source.message:hello")
+        .get("/e2e-index/_search")
+        .add_query_param("q", "message:hello")
         .await;
 
     search_resp.assert_status_ok();
@@ -112,7 +126,7 @@ async fn test_full_ingest_and_search_flow() {
 
     let search_resp2 = server
         .get("/e2e-index/_search")
-        .add_query_param("q", "_source.message:second")
+        .add_query_param("q", "message:second")
         .await;
 
     search_resp2.assert_status_ok();

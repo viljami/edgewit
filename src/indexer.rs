@@ -124,7 +124,7 @@ impl IndexerActor {
             // Open a new writer for this specific partition.
             // Note: In an extreme multi-partition scenario on small RAM, we may need to cap the total memory
             // shared across all writers, or evict old writers from the pool. For now, we assign the budget per writer.
-            let mut writer = index
+            let writer = index
                 .writer(self.index_memory_mb * 1_000_000)
                 .map_err(|e| e.to_string())?;
 

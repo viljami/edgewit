@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse()
         .map_err(|_| "EDGEWIT_DOCSTORE_CACHE_BLOCKS must be a valid usize")?;
 
-    let merge_min_segments: usize = env::var("EDGEWIT_MERGE_MIN_SEGMENTS")
+    let _merge_min_segments: usize = env::var("EDGEWIT_MERGE_MIN_SEGMENTS")
         .unwrap_or_else(|_| "10".to_string())
         .parse()
         .map_err(|_| "EDGEWIT_MERGE_MIN_SEGMENTS must be a valid usize")?;

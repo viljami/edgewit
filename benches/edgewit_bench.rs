@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use axum_test::TestServer;
 
 use edgewit::api::{AppState, app_router};
-use edgewit::indexer::{IndexerActor, setup_index};
+use edgewit::indexer::IndexerActor;
 use edgewit::wal::WalAppender;
 use metrics_exporter_prometheus::PrometheusBuilder;
 
@@ -15,13 +15,14 @@ async fn setup_app() -> (TestServer, TempDir) {
     let temp_dir = TempDir::new().unwrap();
     let data_dir = temp_dir.path().to_path_buf();
 
-    let index = setup_index(&data_dir).unwrap();
-    let writer = index.writer(30_000_000).unwrap();
+    let registry = edgewit::registry::IndexRegistry::new();
+    let index_manager =
+        edgewit::index_manager::IndexManager::new(data_dir.clone(), registry.clone(), 20);
 
     let (wal_tx, wal_rx) = mpsc::channel(10000);
     let (idx_tx, idx_rx) = mpsc::channel(10000);
 
-    let indexer = IndexerActor::new(writer, index.schema(), idx_rx);
+    let indexer = IndexerActor::new(index_manager.clone(), registry.clone(), idx_rx, 30);
     tokio::spawn(async move {
         indexer.run().await;
     });

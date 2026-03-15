@@ -106,4 +106,33 @@ impl IndexManager {
         readers.insert(key, reader.clone());
         Ok(reader)
     }
+
+    pub fn get_all_readers(&self, index_name: &str) -> Result<Vec<IndexReader>, String> {
+        let mut result = Vec::new();
+        let segments_dir = self
+            .base_dir
+            .join("indexes")
+            .join(index_name)
+            .join("segments");
+
+        if !segments_dir.exists() {
+            return Ok(result);
+        }
+
+        let entries = std::fs::read_dir(segments_dir).map_err(|e| e.to_string())?;
+
+        for entry in entries.flatten() {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    if let Some(partition_name) = entry.file_name().to_str() {
+                        if let Ok(reader) = self.get_reader(index_name, partition_name) {
+                            result.push(reader);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
 }

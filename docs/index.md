@@ -56,7 +56,7 @@ curl -X POST http://localhost:9200/my-edge-logs/_doc \
 Query your logs using Lucene/OpenSearch syntax:
 
 ```bash
-curl -X GET "http://localhost:9200/_search?q=_source.level:INFO"
+curl -X GET "http://localhost:9200/indexes/logs/_search?q=_source.level:INFO"
 ```
 
 </section>

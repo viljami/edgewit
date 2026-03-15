@@ -20,7 +20,7 @@ Edgewit provides several OpenSearch-compatible observability endpoints to monito
 
 - **`GET /_cat/indexes`**: Lists all active indexes along with their document counts and storage size approximations. Note that we deliberately use `/indexes` here instead of OpenSearch's `/indices` to remain consistent with our root CRUD endpoints.
 - **`GET /_health`** or **`GET /_cluster/health`**: Returns a quick snapshot of the node's operational status.
-- **`GET /_stats`**: Provides global search and ingestion metrics.
+- **`GET /_stats`**: Provides search and ingestion metrics.
 - **`GET /metrics`**: Exposes internal Prometheus-compatible metrics for scraping by systems like Grafana or Datadog.
 
 ---

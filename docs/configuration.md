@@ -63,7 +63,7 @@ The following parameters were introduced specifically to tune Edgewit for constr
 ### `EDGEWIT_SEARCH_THREADS`
 
 - **Default:** `1`
-- **Description:** The number of Rayon worker threads allocated to the search engine to process `/_search` queries in parallel.
+- **Description:** The number of Rayon worker threads allocated to the search engine to process `/indexes/<index>/_search` queries in parallel.
 - **Tuning Advice:**
   - In standard cloud-based search engines, this defaults to the number of logical CPU cores. On an edge device acting primarily as an ingestion gateway, dedicating all cores to a search query can starve the system, causing ingestion drops or system instability.
   - Leaving this at `1` guarantees deterministic, single-threaded search execution. If you are deploying on a Raspberry Pi 4/5 and doing heavy local analytics, you can safely bump this to `2` or `3` to improve query latency.

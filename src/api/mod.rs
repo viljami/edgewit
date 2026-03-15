@@ -50,16 +50,14 @@ pub struct AppState {
         cluster::root_handler,
         cluster::health_handler,
         cluster::stats_handler,
-        ingest::ingest_doc_handler,
-        ingest::bulk_handler,
-        search::global_search_handler,
-        search::index_search_handler,
-        metrics_handler,
         cluster::cat_indexes_handler,
+        ingest::bulk_handler,
+        ingest::ingest_doc_handler,
+        search::index_search_handler,
         indexes::create_index_handler,
         indexes::get_index_handler,
         indexes::delete_index_handler,
-        indexes::list_indexes_handler
+        indexes::list_indexes_handler,
     ),
     components(schemas(
         cluster::HealthResponse,
@@ -102,10 +100,6 @@ pub fn app_router(state: AppState) -> Router {
             get(indexes::get_index_handler)
                 .put(indexes::create_index_handler)
                 .delete(indexes::delete_index_handler),
-        )
-        .route(
-            "/_search",
-            get(search::global_search_handler).post(search::global_search_handler),
         )
         .route(
             "/{index}/_search",

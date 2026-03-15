@@ -12,9 +12,7 @@
   "paths": {
     "/": {
       "get": {
-        "tags": [
-          "cluster"
-        ],
+        "tags": ["cluster"],
         "summary": "Handler for the root endpoint, emulating the default OpenSearch response",
         "operationId": "root_handler",
         "responses": {
@@ -33,9 +31,7 @@
     },
     "/_bulk": {
       "post": {
-        "tags": [
-          "ingest"
-        ],
+        "tags": ["ingest"],
         "summary": "Handler for OpenSearch compatible bulk ingestion",
         "operationId": "bulk_handler",
         "responses": {
@@ -57,9 +53,7 @@
     },
     "/_cat/indexes": {
       "get": {
-        "tags": [
-          "cluster"
-        ],
+        "tags": ["cluster"],
         "summary": "Handler for the cat indexes endpoint (/_cat/indexes)",
         "operationId": "cat_indexes_handler",
         "responses": {
@@ -81,9 +75,7 @@
     },
     "/_health": {
       "get": {
-        "tags": [
-          "cluster"
-        ],
+        "tags": ["cluster"],
         "summary": "Handler for the cluster health endpoint (/_health or /_cluster/health)",
         "operationId": "health_handler",
         "responses": {
@@ -100,34 +92,9 @@
         }
       }
     },
-    "/_search": {
-      "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "OpenSearch `/_search` endpoint (searches all indices)",
-        "operationId": "global_search_handler",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SearchRequestBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Search results"
-          }
-        }
-      }
-    },
     "/_stats": {
       "get": {
-        "tags": [
-          "cluster"
-        ],
+        "tags": ["cluster"],
         "summary": "Handler for the statistics endpoint (/_stats)",
         "operationId": "stats_handler",
         "responses": {
@@ -146,9 +113,7 @@
     },
     "/indexes": {
       "get": {
-        "tags": [
-          "indexes"
-        ],
+        "tags": ["indexes"],
         "operationId": "list_indexes_handler",
         "responses": {
           "200": {
@@ -169,9 +134,7 @@
     },
     "/indexes/{index}": {
       "get": {
-        "tags": [
-          "indexes"
-        ],
+        "tags": ["indexes"],
         "operationId": "get_index_handler",
         "parameters": [
           {
@@ -200,9 +163,7 @@
         }
       },
       "put": {
-        "tags": [
-          "indexes"
-        ],
+        "tags": ["indexes"],
         "operationId": "create_index_handler",
         "parameters": [
           {
@@ -237,9 +198,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "indexes"
-        ],
+        "tags": ["indexes"],
         "operationId": "delete_index_handler",
         "parameters": [
           {
@@ -284,9 +243,7 @@
     },
     "/{index}/_doc": {
       "post": {
-        "tags": [
-          "ingest"
-        ],
+        "tags": ["ingest"],
         "summary": "Handler for ingesting a single document",
         "operationId": "ingest_doc_handler",
         "parameters": [
@@ -317,12 +274,10 @@
         }
       }
     },
-    "/{index}/_search": {
+    "/indexes/{index}/_search": {
       "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "OpenSearch `/:index/_search` endpoint (searches a specific index)",
+        "tags": ["search"],
+        "summary": "OpenSearch `/indexes/:index/_search` endpoint (searches a specific index)",
         "operationId": "index_search_handler",
         "parameters": [
           {
@@ -402,18 +357,11 @@
       },
       "CompressionOption": {
         "type": "string",
-        "enum": [
-          "none",
-          "zstd",
-          "lz4"
-        ]
+        "enum": ["none", "zstd", "lz4"]
       },
       "DocsStats": {
         "type": "object",
-        "required": [
-          "count",
-          "deleted"
-        ],
+        "required": ["count", "deleted"],
         "properties": {
           "count": {
             "type": "integer",
@@ -429,9 +377,7 @@
       },
       "FieldDefinition": {
         "type": "object",
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "default": {},
           "fast": {
@@ -502,19 +448,13 @@
       },
       "IndexDefinition": {
         "type": "object",
-        "required": [
-          "name",
-          "fields"
-        ],
+        "required": ["name", "fields"],
         "properties": {
           "compression": {
             "$ref": "#/components/schemas/CompressionOption"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "fields": {
             "type": "object",
@@ -535,10 +475,7 @@
             "$ref": "#/components/schemas/PartitionStrategy"
           },
           "retention": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "settings": {
             "type": "object",
@@ -554,10 +491,7 @@
       },
       "IndexStats": {
         "type": "object",
-        "required": [
-          "docs",
-          "store"
-        ],
+        "required": ["docs", "store"],
         "properties": {
           "docs": {
             "$ref": "#/components/schemas/DocsStats"
@@ -569,10 +503,7 @@
       },
       "IndicesStats": {
         "type": "object",
-        "required": [
-          "primaries",
-          "total"
-        ],
+        "required": ["primaries", "total"],
         "properties": {
           "primaries": {
             "$ref": "#/components/schemas/IndexStats"
@@ -584,38 +515,23 @@
       },
       "PartitionStrategy": {
         "type": "string",
-        "enum": [
-          "none",
-          "daily",
-          "hourly",
-          "monthly"
-        ]
+        "enum": ["none", "daily", "hourly", "monthly"]
       },
       "SchemaMode": {
         "type": "string",
-        "enum": [
-          "strict",
-          "drop_unmapped",
-          "dynamic"
-        ]
+        "enum": ["strict", "drop_unmapped", "dynamic"]
       },
       "SearchRequestBody": {
         "type": "object",
         "properties": {
           "aggs": {},
           "from": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "minimum": 0
           },
           "query": {},
           "size": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "minimum": 0
           },
           "sort": {}
@@ -623,12 +539,7 @@
       },
       "ShardsInfo": {
         "type": "object",
-        "required": [
-          "total",
-          "successful",
-          "skipped",
-          "failed"
-        ],
+        "required": ["total", "successful", "skipped", "failed"],
         "properties": {
           "failed": {
             "type": "integer",
@@ -654,10 +565,7 @@
       },
       "StatsResponse": {
         "type": "object",
-        "required": [
-          "_shards",
-          "_all"
-        ],
+        "required": ["_shards", "_all"],
         "properties": {
           "_all": {
             "$ref": "#/components/schemas/IndicesStats"
@@ -669,9 +577,7 @@
       },
       "StoreStats": {
         "type": "object",
-        "required": [
-          "size_in_bytes"
-        ],
+        "required": ["size_in_bytes"],
         "properties": {
           "size_in_bytes": {
             "type": "integer",

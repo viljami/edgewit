@@ -16,7 +16,10 @@ pub enum SchemaBuilderError {
 pub fn build_schema(definition: &IndexDefinition) -> Result<Schema, SchemaBuilderError> {
     let mut builder = Schema::builder();
 
-    for (name, field_def) in &definition.fields {
+    let mut fields: Vec<_> = definition.fields.iter().collect();
+    fields.sort_by_key(|(name, _)| *name);
+
+    for (name, field_def) in fields {
         match field_def.field_type {
             FieldType::Text => {
                 let mut options = TextOptions::default();

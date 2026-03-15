@@ -52,6 +52,22 @@ pub struct StoreStats {
     pub size_in_bytes: u64,
 }
 
+fn get_dir_size(path: &std::path::Path) -> u64 {
+    let mut size = 0;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_dir() {
+                    size += get_dir_size(&entry.path());
+                } else {
+                    size += metadata.len();
+                }
+            }
+        }
+    }
+    size
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct CatIndex {
     pub health: String,
@@ -124,13 +140,25 @@ pub async fn health_handler() -> Json<HealthResponse> {
         (status = 200, description = "Cluster and index statistics", body = StatsResponse)
     )
 )]
-pub async fn stats_handler(State(_state): State<AppState>) -> Json<StatsResponse> {
-    // TODO: Calculate from index manager per partition
-    let num_docs = 0;
-    let num_segments = 0;
+pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse> {
+    let mut num_docs: u64 = 0;
+    let mut num_segments: usize = 0;
+    let mut total_size: u64 = 0;
+
+    for def in state.registry.list() {
+        let index_dir = state.data_dir.join("indexes").join(&def.name);
+        total_size += get_dir_size(&index_dir);
+
+        if let Ok(readers) = state.index_manager.get_all_readers(&def.name) {
+            for reader in readers {
+                num_docs += reader.searcher().num_docs();
+                num_segments += reader.searcher().segment_readers().len();
+            }
+        }
+    }
 
     metrics::gauge!("edgewit_index_docs_total").set(num_docs as f64);
-    metrics::gauge!("edgewit_index_segments_total").set(f64::from(num_segments));
+    metrics::gauge!("edgewit_index_segments_total").set(num_segments as f64);
 
     Json(StatsResponse {
         _shards: ShardsInfo {
@@ -145,14 +173,18 @@ pub async fn stats_handler(State(_state): State<AppState>) -> Json<StatsResponse
                     count: num_docs,
                     deleted: 0,
                 },
-                store: StoreStats { size_in_bytes: 0 },
+                store: StoreStats {
+                    size_in_bytes: total_size,
+                },
             },
             total: IndexStats {
                 docs: DocsStats {
                     count: num_docs,
                     deleted: 0,
                 },
-                store: StoreStats { size_in_bytes: 0 },
+                store: StoreStats {
+                    size_in_bytes: total_size,
+                },
             },
         },
     })
@@ -167,9 +199,6 @@ pub async fn stats_handler(State(_state): State<AppState>) -> Json<StatsResponse
     )
 )]
 pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatIndex>> {
-    // TODO: Calculate from index manager per partition
-    let num_docs = 0;
-
     let mut indices = Vec::new();
     let registered = state.registry.list();
 
@@ -181,13 +210,24 @@ pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatI
             uuid: "unknown".to_string(),
             pri: "1".to_string(),
             rep: "0".to_string(),
-            docs_count: num_docs.to_string(),
+            docs_count: "0".to_string(),
             docs_deleted: "0".to_string(),
             store_size: "0b".to_string(),
             pri_store_size: "0b".to_string(),
         });
     } else {
         for def in registered {
+            let mut num_docs: u64 = 0;
+            if let Ok(readers) = state.index_manager.get_all_readers(&def.name) {
+                for reader in readers {
+                    num_docs += reader.searcher().num_docs();
+                }
+            }
+
+            let index_dir = state.data_dir.join("indexes").join(&def.name);
+            let size = get_dir_size(&index_dir);
+            let size_str = format!("{}b", size);
+
             indices.push(CatIndex {
                 health: "green".to_string(),
                 status: "open".to_string(),
@@ -195,10 +235,10 @@ pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatI
                 uuid: "unknown".to_string(),
                 pri: "1".to_string(),
                 rep: "0".to_string(),
-                docs_count: num_docs.to_string(), // Approximation since we use a monolithic index for now
+                docs_count: num_docs.to_string(),
                 docs_deleted: "0".to_string(),
-                store_size: "0b".to_string(),
-                pri_store_size: "0b".to_string(),
+                store_size: size_str.clone(),
+                pri_store_size: size_str,
             });
         }
     }

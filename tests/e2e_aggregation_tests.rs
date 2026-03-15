@@ -55,15 +55,40 @@ async fn test_complex_aggregation_search() {
     let data_dir = temp_dir.path().to_path_buf();
 
     let registry = IndexRegistry::new();
+
+    let mut fields = std::collections::HashMap::new();
+    fields.insert(
+        "amount".to_string(),
+        edgewit::schema::definition::FieldDefinition {
+            field_type: edgewit::schema::definition::FieldType::Float,
+            indexed: true,
+            stored: false,
+            fast: true,
+            optional: true,
+            default: None,
+        },
+    );
+    fields.insert(
+        "timestamp".to_string(),
+        edgewit::schema::definition::FieldDefinition {
+            field_type: edgewit::schema::definition::FieldType::Datetime,
+            indexed: true,
+            stored: false,
+            fast: true,
+            optional: false,
+            default: None,
+        },
+    );
+
     let def = edgewit::schema::definition::IndexDefinition {
-        name: "e2e-index".to_string(),
+        name: "e2e-aggs".to_string(),
         description: None,
         timestamp_field: "timestamp".to_string(),
         mode: edgewit::schema::definition::SchemaMode::Dynamic,
         partition: edgewit::schema::definition::PartitionStrategy::None,
         retention: None,
         compression: edgewit::schema::definition::CompressionOption::Zstd,
-        fields: std::collections::HashMap::new(),
+        fields,
         settings: std::collections::HashMap::new(),
     };
     registry.register(def).unwrap();
@@ -152,29 +177,29 @@ async fn test_complex_aggregation_search() {
     let aggs_query = json!({
         "size": 0,
         "aggs": {
-            "total_sum": { "sum": { "field": "_source.amount" } },
-            "avg_amount": { "avg": { "field": "_source.amount" } },
+            "total_sum": { "sum": { "field": "amount" } },
+            "avg_amount": { "avg": { "field": "amount" } },
             "sales_per_month": {
                 "date_histogram": {
-                    "field": "_source.timestamp",
+                    "field": "timestamp",
                     "fixed_interval": "30d"
                 }
             },
             "sales_per_week": {
                 "date_histogram": {
-                    "field": "_source.timestamp",
+                    "field": "timestamp",
                     "fixed_interval": "7d"
                 }
             },
             "sales_per_day": {
                 "date_histogram": {
-                    "field": "_source.timestamp",
+                    "field": "timestamp",
                     "fixed_interval": "1d"
                 }
             },
             "sales_per_hour": {
                 "date_histogram": {
-                    "field": "_source.timestamp",
+                    "field": "timestamp",
                     "fixed_interval": "1h"
                 }
             }
