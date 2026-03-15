@@ -122,14 +122,12 @@ impl IndexManager {
         let entries = std::fs::read_dir(segments_dir).map_err(|e| e.to_string())?;
 
         for entry in entries.flatten() {
-            if let Ok(file_type) = entry.file_type() {
-                if file_type.is_dir() {
-                    if let Some(partition_name) = entry.file_name().to_str() {
-                        if let Ok(reader) = self.get_reader(index_name, partition_name) {
-                            result.push(reader);
-                        }
-                    }
-                }
+            if let Ok(file_type) = entry.file_type()
+                && file_type.is_dir()
+                && let Some(partition_name) = entry.file_name().to_str()
+                && let Ok(reader) = self.get_reader(index_name, partition_name)
+            {
+                result.push(reader);
             }
         }
 

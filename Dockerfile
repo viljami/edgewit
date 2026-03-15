@@ -9,7 +9,7 @@ RUN apt-get update && \
 WORKDIR /usr/src/edgewit
 
 # Create a dummy project to cache dependencies
-COPY Cargo.toml ./
+COPY Cargo.toml build.rs ./
 # Create a dummy src/main.rs to allow cargo to build the dependencies
 RUN mkdir -p src/bin benches && \
     echo "fn main() {}" > src/main.rs && \
@@ -20,6 +20,12 @@ RUN mkdir -p src/bin benches && \
 
 # Copy the actual source code
 COPY src ./src
+
+# Pass build arguments
+ARG GIT_COMMIT_HASH
+ARG BUILD_DATE
+ENV GIT_COMMIT_HASH=${GIT_COMMIT_HASH}
+ENV BUILD_DATE=${BUILD_DATE}
 
 # Touch the main file to invalidate the dummy build cache for the main crate
 # and build the actual application

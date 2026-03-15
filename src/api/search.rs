@@ -165,12 +165,11 @@ fn execute_search(
                 source_json = val.clone();
             }
 
-            if let Some(arr) = parsed.get("_index").and_then(|v| v.as_array()) {
-                if !arr.is_empty()
-                    && let Some(s) = arr[0].as_str()
-                {
-                    index_name = s.to_string();
-                }
+            if let Some(arr) = parsed.get("_index").and_then(|v| v.as_array())
+                && !arr.is_empty()
+                && let Some(s) = arr[0].as_str()
+            {
+                index_name = s.to_string();
             }
         }
 
