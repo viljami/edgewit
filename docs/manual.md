@@ -14,7 +14,7 @@ Get Edgewit running in seconds using Docker. This is the fastest way to start ex
 
 ### 1. Start the Server
 
-The easiest way to run Edgewit is via Docker:
+The easiest way to run Edgewit is via Docker. By default, Edgewit binds to port `9200` to maintain compatibility with the OpenSearch ecosystem:
 
 ```bash
 docker run -p 9200:9200 -v edgewit_data:/app/data ghcr.io/viljami/edgewit:latest

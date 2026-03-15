@@ -285,9 +285,7 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
     "*".to_string()
 }
 
-/// OpenSearch `/_search` endpoint (searches all indices)
-
-/// OpenSearch `/:index/_search` endpoint (searches a specific index)
+/// Search a specific index
 #[utoipa::path(
     get,
     path = "/{index}/_search",

@@ -13,11 +13,11 @@ This guide details all available configuration parameters, with a special focus 
 
 ## General Configuration
 
-| Variable           | Default  | Description                                                                                                                                               |
-| :----------------- | :------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RUST_LOG`         | `info`   | Sets the logging level. Uses standard `tracing` EnvFilter syntax (e.g., `info`, `edgewit=debug`).                                                         |
-| `EDGEWIT_PORT`     | `9200`   | The TCP port the HTTP API binds to. Defaults to 9200 for basic OpenSearch compatibility.                                                                  |
-| `EDGEWIT_DATA_DIR` | `./data` | The directory where Tantivy index segments and Write-Ahead Log (WAL) files are persisted. Ensure the application has read/write permissions to this path. |
+| Variable            | Default        | Description                                                                                                                                               |
+| :------------------ | :------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RUST_LOG`          | `info`         | Sets the logging level. Uses standard `tracing` EnvFilter syntax (e.g., `info`, `edgewit=debug`).                                                         |
+| `EDGEWIT_BIND_ADDR` | `0.0.0.0:9200` | The IP address and TCP port the HTTP API binds to. Defaults to `0.0.0.0:9200` for basic OpenSearch compatibility.                                         |
+| `EDGEWIT_DATA_DIR`  | `./data`       | The directory where Tantivy index segments and Write-Ahead Log (WAL) files are persisted. Ensure the application has read/write permissions to this path. |
 
 ---
 

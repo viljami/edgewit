@@ -277,7 +277,7 @@
     "/indexes/{index}/_search": {
       "get": {
         "tags": ["search"],
-        "summary": "OpenSearch `/indexes/:index/_search` endpoint (searches a specific index)",
+        "summary": "Search a specific index",
         "operationId": "index_search_handler",
         "parameters": [
           {

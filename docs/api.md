@@ -14,6 +14,14 @@ While "indices" is the traditional Latin plural, "indexes" is the standard plura
 
 ---
 
+### API Versioning & Compatibility
+
+You might notice that Edgewit does not use path-based versioning (e.g., `/api/v1/_bulk`). This is an intentional design choice to maintain **drop-in compatibility** with the OpenSearch and Elasticsearch ecosystem.
+
+Standard log shippers (like Vector, Fluent Bit, or Filebeat) expect to send payloads to root-level endpoints like `/_bulk`. Altering these paths would break out-of-the-box integrations. If breaking API changes are ever required in the future, versioning will be handled via HTTP headers (e.g., `Accept: application/vnd.edgewit+json; version=2`) to ensure legacy edge deployments continue to function without interruption.
+
+---
+
 ### Observability & Stats
 
 Edgewit provides several OpenSearch-compatible observability endpoints to monitor the health and performance of your edge node:
