@@ -108,8 +108,8 @@ When defining `fields`, you must specify how the underlying search engine should
 | `text`     | Full-text searchable string. Text is tokenized, meaning you can search for individual words within a sentence. |
 | `keyword`  | Exact-match string. Ideal for IDs, tags, log levels (`INFO`, `ERROR`), or hostnames.                           |
 | `datetime` | Timestamp data. Required for the field specified in `timestamp_field`.                                         |
-| `integer`  | Signed 64-bit integer (`i64`).                                                                                 |
-| `float`    | 64-bit floating point number (`f64`).                                                                          |
+| `integer`  | Signed 64-bit integer.                                                                                         |
+| `float`    | 64-bit floating point number.                                                                                  |
 | `boolean`  | True/false values.                                                                                             |
 | `bytes`    | Binary data.                                                                                                   |
 
