@@ -55,4 +55,7 @@ async fn test_api_authentication() {
         )
         .await;
     auth_resp.assert_status(axum::http::StatusCode::OK);
+
+    // 4. Cleanup
+    temp_dir.close().unwrap();
 }

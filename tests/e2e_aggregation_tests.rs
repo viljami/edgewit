@@ -252,4 +252,7 @@ async fn test_complex_aggregation_search() {
         "Should have roughly 4344 hourly buckets, got {}",
         buckets_hour
     );
+
+    // 9. Cleanup
+    temp_dir.close().unwrap();
 }

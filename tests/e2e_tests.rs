@@ -173,4 +173,7 @@ async fn test_full_ingest_and_search_flow() {
     // Text output isn't populated unless we installed global recorder, but rendering works based on prometheus logic.
     // Note: since we used build_recorder() and not install_recorder(), global macros inside handlers won't register to THIS handle unless we installed it globally.
     // Since unit tests run concurrently, testing metrics text fully requires care, but we assert it returns 200 OK.
+
+    // 11. Cleanup
+    temp_dir.close().unwrap();
 }
