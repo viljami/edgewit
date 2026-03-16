@@ -134,6 +134,35 @@ async fn test_full_ingest_and_search_flow() {
     assert_eq!(search_json2["hits"]["total"]["value"], 1);
     assert_eq!(search_json2["hits"]["hits"][0]["_source"]["level"], "WARN");
 
+    // 8.5 Test Wildcard Search
+    let search_all_resp = server
+        .get("/indexes/e2e-index/_search")
+        .add_query_param("q", "*")
+        .await;
+
+    search_all_resp.assert_status_ok();
+    let search_all_json = search_all_resp.json::<serde_json::Value>();
+    assert_eq!(search_all_json["hits"]["total"]["value"], 2);
+
+    let search_empty_resp = server.get("/indexes/e2e-index/_search").await;
+
+    search_empty_resp.assert_status_ok();
+    let search_empty_json = search_empty_resp.json::<serde_json::Value>();
+    assert_eq!(search_empty_json["hits"]["total"]["value"], 2);
+
+    // 8.6 Test Stats
+    let stats_resp = server.get("/_stats").await;
+    stats_resp.assert_status_ok();
+    let stats_json = stats_resp.json::<serde_json::Value>();
+    assert_eq!(stats_json["_all"]["primaries"]["docs"]["count"], 2);
+
+    // 8.7 Test Cat Indices
+    let cat_resp = server.get("/_cat/indexes").await;
+    cat_resp.assert_status_ok();
+    let cat_json = cat_resp.json::<serde_json::Value>();
+    assert_eq!(cat_json[0]["index"], "e2e-index");
+    assert_eq!(cat_json[0]["docs.count"], "2");
+
     // 9. Test Health
     let health_resp = server.get("/_health").await;
     health_resp.assert_status_ok();

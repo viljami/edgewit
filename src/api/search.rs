@@ -94,15 +94,14 @@ fn execute_search(
 
         let query_parser = QueryParser::for_index(searcher.index(), vec![source_field]);
 
-        let final_query_str = if query_str.trim().is_empty() {
-            "*".to_string()
-        } else {
-            query_str.to_string()
-        };
-
-        let query = query_parser
-            .parse_query(&final_query_str)
-            .map_err(|e| format!("Invalid query: {e}"))?;
+        let query: Box<dyn tantivy::query::Query> =
+            if query_str.trim().is_empty() || query_str.trim() == "*" {
+                Box::new(tantivy::query::AllQuery)
+            } else {
+                query_parser
+                    .parse_query(query_str)
+                    .map_err(|e| format!("Invalid query: {e}"))?
+            };
 
         if let Some(aggs_req) = &aggs {
             let agg_collector = DistributedAggregationCollector::from_aggs(
@@ -330,5 +329,39 @@ pub async fn index_search_handler(
 }
 
 #[cfg(test)]
-#[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use tantivy::{Index, doc, schema::*};
+
+    #[test]
+    fn test_execute_search_wildcard() {
+        let mut schema_builder = Schema::builder();
+        let source_field = schema_builder.add_json_field("_source", STORED | TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut writer = index.writer(15_000_000).unwrap();
+        writer
+            .add_document(doc!(
+                source_field => json!({"message": "hello"})
+            ))
+            .unwrap();
+        writer
+            .add_document(doc!(
+                source_field => json!({"message": "world"})
+            ))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+
+        // Test wildcard query string
+        let res = execute_search(&[reader.clone()], "*", None, 0, 10, None).unwrap();
+        assert_eq!(res.hits.total.value, 2);
+
+        // Test empty query string (should behave like wildcard)
+        let res_empty = execute_search(&[reader.clone()], " ", None, 0, 10, None).unwrap();
+        assert_eq!(res_empty.hits.total.value, 2);
+    }
+}

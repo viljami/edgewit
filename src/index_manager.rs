@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tantivy::{Index, IndexReader, ReloadPolicy};
+use tracing::{debug, error};
 
 use crate::partition::get_partition_path;
 use crate::registry::IndexRegistry;
@@ -98,7 +99,7 @@ impl IndexManager {
 
         let reader = index
             .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommitWithDelay)
+            .reload_policy(ReloadPolicy::Manual)
             .doc_store_cache_num_blocks(self.docstore_cache_blocks)
             .try_into()
             .map_err(|e| e.to_string())?;
@@ -116,18 +117,35 @@ impl IndexManager {
             .join("segments");
 
         if !segments_dir.exists() {
+            debug!(
+                "Segments directory does not exist for index '{}': {:?}",
+                index_name, segments_dir
+            );
             return Ok(result);
         }
 
-        let entries = std::fs::read_dir(segments_dir).map_err(|e| e.to_string())?;
+        let entries = std::fs::read_dir(&segments_dir).map_err(|e| e.to_string())?;
+        debug!(
+            "Scanning segments directory for index '{}': {:?}",
+            index_name, segments_dir
+        );
 
         for entry in entries.flatten() {
             if let Ok(file_type) = entry.file_type()
                 && file_type.is_dir()
                 && let Some(partition_name) = entry.file_name().to_str()
-                && let Ok(reader) = self.get_reader(index_name, partition_name)
             {
-                result.push(reader);
+                debug!(
+                    "Found partition '{}' for index '{}'",
+                    partition_name, index_name
+                );
+                match self.get_reader(index_name, partition_name) {
+                    Ok(reader) => result.push(reader),
+                    Err(e) => error!(
+                        "Failed to get reader for index '{}' partition '{}': {}",
+                        index_name, partition_name, e
+                    ),
+                }
             }
         }
 
