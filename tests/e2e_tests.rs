@@ -35,6 +35,18 @@ async fn test_full_ingest_and_search_flow() {
         },
     );
 
+    fields.insert(
+        "optional_tag".to_string(),
+        edgewit::schema::definition::FieldDefinition {
+            field_type: edgewit::schema::definition::FieldType::Text,
+            indexed: true,
+            stored: false,
+            fast: false,
+            optional: true,
+            default: None,
+        },
+    );
+
     let def = edgewit::schema::definition::IndexDefinition {
         name: "e2e-index".to_string(),
         description: None,
@@ -100,6 +112,13 @@ async fn test_full_ingest_and_search_flow() {
 
     bulk_resp.assert_status(axum::http::StatusCode::CREATED);
 
+    let sparse_resp = server
+        .post("/e2e-index/_doc")
+        .json(&json!({"message": "third doc", "optional_tag": "special"}))
+        .await;
+
+    sparse_resp.assert_status(axum::http::StatusCode::CREATED);
+
     // 7. Wait for WAL to flush and Indexer to commit
     // In our implementation, IndexerActor processes elements and commits periodically.
     // The indexer commits every 5 seconds or 10,000 docs.
@@ -134,6 +153,19 @@ async fn test_full_ingest_and_search_flow() {
     assert_eq!(search_json2["hits"]["total"]["value"], 1);
     assert_eq!(search_json2["hits"]["hits"][0]["_source"]["level"], "WARN");
 
+    let search_sparse_resp = server
+        .get("/indexes/e2e-index/_search")
+        .add_query_param("q", "optional_tag:special")
+        .await;
+
+    search_sparse_resp.assert_status_ok();
+    let search_sparse_json = search_sparse_resp.json::<serde_json::Value>();
+    assert_eq!(search_sparse_json["hits"]["total"]["value"], 1);
+    assert_eq!(
+        search_sparse_json["hits"]["hits"][0]["_source"]["message"],
+        "third doc"
+    );
+
     // 8.5 Test Wildcard Search
     let search_all_resp = server
         .get("/indexes/e2e-index/_search")
@@ -142,26 +174,26 @@ async fn test_full_ingest_and_search_flow() {
 
     search_all_resp.assert_status_ok();
     let search_all_json = search_all_resp.json::<serde_json::Value>();
-    assert_eq!(search_all_json["hits"]["total"]["value"], 2);
+    assert_eq!(search_all_json["hits"]["total"]["value"], 3);
 
     let search_empty_resp = server.get("/indexes/e2e-index/_search").await;
 
     search_empty_resp.assert_status_ok();
     let search_empty_json = search_empty_resp.json::<serde_json::Value>();
-    assert_eq!(search_empty_json["hits"]["total"]["value"], 2);
+    assert_eq!(search_empty_json["hits"]["total"]["value"], 3);
 
     // 8.6 Test Stats
     let stats_resp = server.get("/_stats").await;
     stats_resp.assert_status_ok();
     let stats_json = stats_resp.json::<serde_json::Value>();
-    assert_eq!(stats_json["_all"]["primaries"]["docs"]["count"], 2);
+    assert_eq!(stats_json["_all"]["primaries"]["docs"]["count"], 3);
 
     // 8.7 Test Cat Indices
     let cat_resp = server.get("/_cat/indexes").await;
     cat_resp.assert_status_ok();
     let cat_json = cat_resp.json::<serde_json::Value>();
     assert_eq!(cat_json[0]["index"], "e2e-index");
-    assert_eq!(cat_json[0]["docs.count"], "2");
+    assert_eq!(cat_json[0]["docs.count"], "3");
 
     // 9. Test Health
     let health_resp = server.get("/_health").await;
