@@ -212,4 +212,30 @@ mod tests {
         assert!(schema.get_field("timestamp").is_ok());
         assert!(schema.get_field("_source").is_ok());
     }
+
+    #[test]
+    fn test_build_schema_always_includes_source() {
+        let def = IndexDefinition {
+            name: "minimal".to_string(),
+            description: None,
+            timestamp_field: "timestamp".to_string(),
+            mode: SchemaMode::Dynamic,
+            partition: PartitionStrategy::None,
+            retention: None,
+            compression: CompressionOption::Zstd,
+            fields: HashMap::new(),
+            settings: HashMap::new(),
+        };
+
+        let schema = build_schema(&def).unwrap();
+        let source_field = schema.get_field("_source");
+        assert!(
+            source_field.is_ok(),
+            "_source field must be present in all built schemas"
+        );
+
+        let entry = schema.get_field_entry(source_field.unwrap());
+        assert_eq!(entry.name(), "_source");
+        assert!(entry.is_stored());
+    }
 }

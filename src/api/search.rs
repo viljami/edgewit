@@ -83,7 +83,9 @@ fn execute_search(
     let mut global_aggs: Option<IntermediateAggregationResults> = None;
 
     for (reader_idx, reader) in readers.iter().enumerate() {
-        let _ = reader.reload();
+        if let Err(e) = reader.reload() {
+            tracing::error!("Failed to reload reader: {}", e);
+        }
         let searcher = reader.searcher();
         let schema = searcher.index().schema();
 
@@ -363,5 +365,28 @@ mod tests {
         // Test empty query string (should behave like wildcard)
         let res_empty = execute_search(&[reader.clone()], " ", None, 0, 10, None).unwrap();
         assert_eq!(res_empty.hits.total.value, 2);
+    }
+
+    #[test]
+    fn test_execute_search_missing_source_field() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut writer = index.writer(15_000_000).unwrap();
+        writer
+            .add_document(doc!(
+                text_field => "hello"
+            ))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+
+        // Should gracefully return 0 hits without crashing if _source is missing from schema
+        let res = execute_search(&[reader], "*", None, 0, 10, None).unwrap();
+        assert_eq!(res.hits.total.value, 0);
+        assert!(res.hits.hits.is_empty());
     }
 }

@@ -173,7 +173,9 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
 
         if let Ok(readers) = state.index_manager.get_all_readers(&def.name) {
             for reader in readers {
-                let _ = reader.reload();
+                if let Err(e) = reader.reload() {
+                    tracing::error!("Failed to reload reader for index '{}': {}", def.name, e);
+                }
                 num_docs += reader.searcher().num_docs();
                 num_segments += reader.searcher().segment_readers().len();
             }
@@ -243,7 +245,9 @@ pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatI
             let mut num_docs: u64 = 0;
             if let Ok(readers) = state.index_manager.get_all_readers(&def.name) {
                 for reader in readers {
-                    let _ = reader.reload();
+                    if let Err(e) = reader.reload() {
+                        tracing::error!("Failed to reload reader for index '{}': {}", def.name, e);
+                    }
                     num_docs += reader.searcher().num_docs();
                 }
             }
