@@ -25,7 +25,7 @@ _Note: Edgewit expects index definitions to be placed in the `indexes/` subdirec
 
 ## 1. Define the Index Schema
 
-Create the index definition file at `data/indexes/logs.index.yaml`. This file tells Edgewit how to parse, store, partition, and retain your incoming log data.
+Create the index definition file at `data/indexes/logs.index.yaml`. This file tells Edgewit how to parse and store your incoming log data.
 
 ```yaml
 # data/indexes/logs.index.yaml
@@ -33,31 +33,30 @@ Create the index definition file at `data/indexes/logs.index.yaml`. This file te
 name: logs
 description: "Application log events from edge services"
 
-# Use the timestamp field for time partitioning and retention
+# The field that holds each document's primary timestamp.
+# Must be declared below with type: datetime for retention to work.
 timestamp_field: timestamp
 
-# Only index fields explicitly defined below; drop unmapped fields to save space
+# Strict about unknown fields to prevent schema bloat on disk-constrained devices
 mode: drop_unmapped
 
-# Partition data daily
-partition: daily
-
-# Automatically delete logs older than 7 days
+# Automatically delete documents older than 7 days.
+# Requires timestamp_field to be type: datetime with fast: true.
 retention: 7d
 
-# Compress segments using zstd for optimal storage
+# Compress segments for maximum storage efficiency on SD cards
 compression: zstd
 
 fields:
   timestamp:
     type: datetime
     indexed: true
-    fast: true
+    fast: true # Required for date_histogram aggregations and efficient retention queries
 
   level:
     type: keyword
     indexed: true
-    fast: true
+    fast: true # Required for terms aggregations
 
   service:
     type: keyword
@@ -70,7 +69,7 @@ fields:
 
 ## 2. Create the Docker Compose File
 
-Next, create the `docker-compose.yaml` file in the root of your project. We will use the official GitHub Container Registry image (`ghcr.io/viljami/edgewit`) and mount our local `./data` directory into the container's `/app/data` directory.
+Next, create the `docker-compose.yaml` file in the root of your project. We use the official GitHub Container Registry image and mount our local `./data` directory into the container.
 
 ```yaml
 # docker-compose.yaml
@@ -89,28 +88,61 @@ services:
       - ./data:/data
     restart: unless-stopped
     environment:
-      # Optional: Disable dynamic index creation via API to lock down the schema
+      # Disk limits — protects against SD card exhaustion
+      EDGEWIT_MAX_INDEX_BYTES: "2GB"
+      EDGEWIT_MAX_WAL_BYTES: "256MB"
+
+      # Memory budget for Tantivy writer (safe default for Raspberry Pi 4)
+      EDGEWIT_INDEX_MEMORY_MB: "50"
+
+      # Optional: Uncomment to require an API key on all endpoints
+      # EDGEWIT_API_KEY: "your-secret-key"
+
+      # Optional: Disable dynamic index management to lock schema to YAML files only
       # EDGEWIT_API_INDEX_MANAGEMENT_ENABLED: "false"
 ```
 
-_Note: Edgewit runs securely as a non-root user inside the container. If you encounter a `Permission denied (os error 13)` error when writing data, ensure your local `./data` directory is writable by the container (e.g., by running `chmod -R 777 ./data` or adjusting the ownership)._
+_Note: Edgewit runs securely as a non-root user inside the container. If you encounter a `Permission denied (os error 13)` error when writing data, ensure your local `./data` directory is writable by the container (e.g., `chmod -R 777 ./data`)._
+
+_Note on retention: with `retention: 7d` set, the background worker will delete documents with a `timestamp` older than 7 days every 5 minutes. Physical disk space is reclaimed when the compaction worker next merges segments._
 
 ## 3. Run the Stack
 
-With the files in place, you can start your Edgewit instance by running:
+With the files in place, start Edgewit:
 
 ```bash
 docker-compose up -d
 ```
 
-Edgewit will start up, read the `logs.index.yaml` file from the mounted volume, and immediately initialize the `logs` index with the defined schema and a 7-day retention policy.
+Edgewit will start, read the `logs.index.yaml` from the mounted volume, and immediately initialize the `logs` index with the defined schema.
 
 ### Verify the Setup
 
-You can verify that the index was successfully loaded by querying the `/indexes` endpoint:
+Confirm the index was loaded:
 
 ```bash
 curl http://localhost:9200/indexes/logs
 ```
 
-You are now ready to start sending logs to your Edgewit instance at `http://localhost:9200/logs/_doc`!
+### Ingest a Log Event
+
+```bash
+curl -X POST http://localhost:9200/logs/_doc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": "2024-05-12T10:00:00Z",
+    "level": "INFO",
+    "service": "sensor-daemon",
+    "message": "Sensor reading completed."
+  }'
+```
+
+### Search
+
+After a few seconds (for the indexer to commit), search your logs:
+
+```bash
+curl "http://localhost:9200/indexes/logs/_search?q=message:sensor"
+```
+
+You are now ready to start sending logs to your Edgewit instance!

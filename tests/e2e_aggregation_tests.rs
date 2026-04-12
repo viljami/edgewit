@@ -98,9 +98,16 @@ async fn test_complex_aggregation_search() {
     // 2. Initialize Channels
     let (wal_tx, wal_rx) = mpsc::channel(10000);
     let (idx_tx, idx_rx) = mpsc::channel(10000);
+    let (_purge_tx, purge_rx) = mpsc::channel(1);
 
     // 3. Spawn Indexer Thread
-    let indexer = IndexerActor::new(index_manager.clone(), registry.clone(), idx_rx, 30);
+    let indexer = IndexerActor::new(
+        index_manager.clone(),
+        registry.clone(),
+        idx_rx,
+        30,
+        purge_rx,
+    );
     tokio::spawn(async move {
         indexer.run().await;
     });

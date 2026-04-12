@@ -66,7 +66,9 @@ pub struct Hit {
     pub _source: serde_json::Value,
 }
 
-/// Helper to execute the actual Tantivy search
+/// Executes a Tantivy search across the provided readers.
+///
+/// Accepts a slice so that it remains unit-testable with in-RAM indexes.
 fn execute_search(
     readers: &[tantivy::IndexReader],
     query_str: &str,
@@ -78,13 +80,13 @@ fn execute_search(
     let start = std::time::Instant::now();
     let limit = if size == 0 { 1 } else { from + size };
 
-    let mut global_total_docs = 0;
+    let mut global_total_docs: usize = 0;
     let mut global_hits: Vec<(f32, usize, tantivy::DocAddress)> = Vec::new();
     let mut global_aggs: Option<IntermediateAggregationResults> = None;
 
     for (reader_idx, reader) in readers.iter().enumerate() {
         if let Err(e) = reader.reload() {
-            tracing::error!("Failed to reload reader: {}", e);
+            error!("Failed to reload reader: {e}");
         }
         let searcher = reader.searcher();
         let schema = searcher.index().schema();
@@ -95,7 +97,6 @@ fn execute_search(
         };
 
         let query_parser = QueryParser::for_index(searcher.index(), vec![source_field]);
-
         let query: Box<dyn tantivy::query::Query> =
             if query_str.trim().is_empty() || query_str.trim() == "*" {
                 Box::new(tantivy::query::AllQuery)
@@ -106,46 +107,44 @@ fn execute_search(
             };
 
         if let Some(aggs_req) = &aggs {
-            let agg_collector = DistributedAggregationCollector::from_aggs(
+            let collector = DistributedAggregationCollector::from_aggs(
                 aggs_req.clone(),
                 AggregationLimitsGuard::default(),
             );
-            let (total_docs, top_docs, aggs_res) = searcher
-                .search(&query, &(Count, TopDocs::with_limit(limit), agg_collector))
+            let (total, top, aggs_res) = searcher
+                .search(&query, &(Count, TopDocs::with_limit(limit), collector))
                 .map_err(|e| format!("Search error: {e}"))?;
-            global_total_docs += total_docs;
-            for (score, doc_address) in top_docs {
-                global_hits.push((score, reader_idx, doc_address));
+            global_total_docs += total;
+            for (score, addr) in top {
+                global_hits.push((score, reader_idx, addr));
             }
-            if let Some(existing_aggs) = &mut global_aggs {
-                let _ = existing_aggs.merge_fruits(aggs_res);
+            if let Some(existing) = &mut global_aggs {
+                let _ = existing.merge_fruits(aggs_res);
             } else {
                 global_aggs = Some(aggs_res);
             }
         } else {
-            let (total_docs, top_docs) = searcher
+            let (total, top) = searcher
                 .search(&query, &(Count, TopDocs::with_limit(limit)))
                 .map_err(|e| format!("Search error: {e}"))?;
-            global_total_docs += total_docs;
-            for (score, doc_address) in top_docs {
-                global_hits.push((score, reader_idx, doc_address));
+            global_total_docs += total;
+            for (score, addr) in top {
+                global_hits.push((score, reader_idx, addr));
             }
         }
     }
 
     global_hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    let paginated_hits = global_hits
+    let paginated = global_hits
         .into_iter()
         .skip(from)
         .take(if size == 0 { 0 } else { size });
 
     let mut hits = Vec::new();
-    let mut max_score = None;
+    let mut max_score: Option<f32> = None;
 
-    for (score, reader_idx, doc_address) in paginated_hits {
-        if max_score.is_none() {
-            max_score = Some(score);
-        }
+    for (score, reader_idx, doc_address) in paginated {
+        max_score.get_or_insert(score);
 
         let searcher = readers[reader_idx].searcher();
         let schema = searcher.index().schema();
@@ -153,11 +152,11 @@ fn execute_search(
             .doc(doc_address)
             .map_err(|e| format!("Failed to retrieve doc: {e}"))?;
 
-        let doc_json_str = retrieved_doc.to_json(&schema);
+        let doc_json = retrieved_doc.to_json(&schema);
         let mut source_json = serde_json::Value::Null;
         let mut index_name = "unknown".to_string();
 
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&doc_json_str) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&doc_json) {
             if let Some(arr) = parsed.get("_source").and_then(|v| v.as_array()) {
                 if !arr.is_empty() {
                     source_json = arr[0].clone();
@@ -165,7 +164,6 @@ fn execute_search(
             } else if let Some(val) = parsed.get("_source") {
                 source_json = val.clone();
             }
-
             if let Some(arr) = parsed.get("_index").and_then(|v| v.as_array())
                 && !arr.is_empty()
                 && let Some(s) = arr[0].as_str()
@@ -176,7 +174,7 @@ fn execute_search(
 
         hits.push(Hit {
             _index: index_name,
-            _id: "unknown".to_string(), // In a real system, track actual document IDs
+            _id: "unknown".to_string(),
             _score: Some(score),
             _source: source_json,
         });
@@ -212,7 +210,7 @@ fn execute_search(
     })
 }
 
-// Extract search query from either URL params or JSON body
+/// Translates an OpenSearch-style query DSL subset into a Tantivy query string.
 fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestBody>) -> String {
     if let Some(q) = &params.q {
         return q.clone();
@@ -221,19 +219,14 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
     if let Some(b) = body
         && let Some(q) = &b.query
     {
-        // Very naive OpenSearch query DSL parsing for M3
-        // If they passed {"query": {"query_string": {"query": "foo"}}}
         if let Some(qs) = q.get("query_string")
-            && let Some(query_str) = qs.get("query").and_then(|v| v.as_str())
+            && let Some(s) = qs.get("query").and_then(|v| v.as_str())
         {
-            return query_str.to_string();
+            return s.to_string();
         }
-        // If they passed {"query": {"match_all": {}}}
         if q.get("match_all").is_some() {
             return "*".to_string();
         }
-
-        // If they passed {"query": {"match": {"field": "value"}}}
         if let Some(m) = q.get("match")
             && let Some(obj) = m.as_object()
         {
@@ -247,24 +240,22 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
                 }
             }
         }
-
-        // Basic fallback for other simple queries (e.g., bool -> must -> match)
         if let Some(bool_q) = q.get("bool")
             && let Some(must) = bool_q.get("must")
             && let Some(arr) = must.as_array()
         {
             let mut parts = Vec::new();
             for item in arr {
-                if let Some(m) = item.get("match") {
-                    if let Some(obj) = m.as_object() {
-                        for (k, v) in obj {
-                            if let Some(s) = v.as_str() {
-                                parts.push(format!("{k}:{s}"));
-                            } else if let Some(obj2) = v.as_object()
-                                && let Some(q_val) = obj2.get("query").and_then(|v| v.as_str())
-                            {
-                                parts.push(format!("{k}:{q_val}"));
-                            }
+                if let Some(m) = item.get("match")
+                    && let Some(obj) = m.as_object()
+                {
+                    for (k, v) in obj {
+                        if let Some(s) = v.as_str() {
+                            parts.push(format!("{k}:{s}"));
+                        } else if let Some(obj2) = v.as_object()
+                            && let Some(q_val) = obj2.get("query").and_then(|v| v.as_str())
+                        {
+                            parts.push(format!("{k}:{q_val}"));
                         }
                     }
                 } else if let Some(m) = item.get("match_phrase")
@@ -286,7 +277,6 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
     "*".to_string()
 }
 
-/// Search a specific index
 #[utoipa::path(
     get,
     path = "/{index}/_search",
@@ -310,17 +300,19 @@ pub async fn index_search_handler(
         .size
         .or_else(|| body.as_ref().and_then(|b| b.size))
         .unwrap_or(10);
-
     let aggs = body.as_ref().and_then(|b| b.aggs.clone());
+
+    // Single reader per logical index
     let readers = state
         .index_manager
-        .get_all_readers(&index)
+        .get_reader(&index)
+        .map(|r| vec![r])
         .unwrap_or_default();
 
-    match execute_search(&readers, &query_str, Some(&index.clone()), from, size, aggs) {
+    match execute_search(&readers, &query_str, Some(&index), from, size, aggs) {
         Ok(resp) => axum::response::Json(resp).into_response(),
         Err(e) => {
-            error!("Search failed for index {}: {}", index, e);
+            error!("Search failed for '{}': {e}", index);
             (
                 axum::http::StatusCode::BAD_REQUEST,
                 format!("Search error: {e}"),
@@ -345,24 +337,18 @@ mod tests {
 
         let mut writer = index.writer(15_000_000).unwrap();
         writer
-            .add_document(doc!(
-                source_field => json!({"message": "hello"})
-            ))
+            .add_document(doc!(source_field => json!({"message": "hello"})))
             .unwrap();
         writer
-            .add_document(doc!(
-                source_field => json!({"message": "world"})
-            ))
+            .add_document(doc!(source_field => json!({"message": "world"})))
             .unwrap();
         writer.commit().unwrap();
 
         let reader = index.reader().unwrap();
 
-        // Test wildcard query string
         let res = execute_search(&[reader.clone()], "*", None, 0, 10, None).unwrap();
         assert_eq!(res.hits.total.value, 2);
 
-        // Test empty query string (should behave like wildcard)
         let res_empty = execute_search(&[reader.clone()], " ", None, 0, 10, None).unwrap();
         assert_eq!(res_empty.hits.total.value, 2);
     }
@@ -375,16 +361,12 @@ mod tests {
         let index = Index::create_in_ram(schema);
 
         let mut writer = index.writer(15_000_000).unwrap();
-        writer
-            .add_document(doc!(
-                text_field => "hello"
-            ))
-            .unwrap();
+        writer.add_document(doc!(text_field => "hello")).unwrap();
         writer.commit().unwrap();
 
         let reader = index.reader().unwrap();
 
-        // Should gracefully return 0 hits without crashing if _source is missing from schema
+        // Should return 0 hits gracefully when _source field is absent
         let res = execute_search(&[reader], "*", None, 0, 10, None).unwrap();
         assert_eq!(res.hits.total.value, 0);
         assert!(res.hits.hits.is_empty());

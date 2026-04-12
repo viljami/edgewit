@@ -3,7 +3,6 @@ pub mod compaction;
 pub mod index_manager;
 pub mod indexer;
 pub mod ingestion;
-pub mod partition;
 pub mod registry;
 pub mod retention;
 pub mod schema;

@@ -13,10 +13,10 @@ pub enum CompactionError {
     Join(#[from] tokio::task::JoinError),
 }
 
-/// A background worker that periodically scans all index partitions
-/// and forces a segment merge if there are too many small segments.
-/// This prevents file handle exhaustion and degrades gracefully if
-/// a partition is currently being written to.
+/// Periodically merges Tantivy segments for every index under `<data_dir>/indexes/`.
+///
+/// One index = one directory. The worker scans that single directory level —
+/// no partition subdirectory traversal required.
 pub struct CompactionWorker {
     data_dir: PathBuf,
     interval: Duration,
@@ -25,12 +25,12 @@ pub struct CompactionWorker {
 
 impl CompactionWorker {
     pub fn new(data_dir: PathBuf) -> Self {
-        let interval_secs = std::env::var("EDGEWIT_COMPACTION_INTERVAL_SECS")
+        let interval_secs: u64 = std::env::var("EDGEWIT_COMPACTION_INTERVAL_SECS")
             .unwrap_or_else(|_| "300".to_string())
             .parse()
             .unwrap_or(300);
 
-        let min_segments = std::env::var("EDGEWIT_MERGE_MIN_SEGMENTS")
+        let min_segments: usize = std::env::var("EDGEWIT_MERGE_MIN_SEGMENTS")
             .unwrap_or_else(|_| "10".to_string())
             .parse()
             .unwrap_or(10);
@@ -42,134 +42,98 @@ impl CompactionWorker {
         }
     }
 
-    /// Starts the compaction loop. Should be spawned as a Tokio task.
+    /// Runs the compaction loop. Spawn this as a Tokio task.
     pub async fn run(self) {
         info!(
-            "Compaction worker started. Interval: {}s, Min segments: {}",
+            "Compaction worker started. Interval: {}s, min segments: {}.",
             self.interval.as_secs(),
             self.min_segments
         );
         let mut ticker = tokio::time::interval(self.interval);
-
         loop {
             ticker.tick().await;
-            debug!("Starting background compaction cycle.");
-            if let Err(e) = self.run_compaction_cycle().await {
-                error!("Compaction cycle failed: {}", e);
+            debug!("Starting compaction cycle.");
+            if let Err(e) = self.run_cycle().await {
+                error!("Compaction cycle error: {e}");
             }
         }
     }
 
-    async fn run_compaction_cycle(&self) -> Result<(), CompactionError> {
+    async fn run_cycle(&self) -> Result<(), CompactionError> {
         let indexes_dir = self.data_dir.join("indexes");
         if !indexes_dir.exists() {
             return Ok(());
         }
 
-        let mut index_entries = tokio::fs::read_dir(&indexes_dir).await?;
-
-        while let Some(index_entry) = index_entries.next_entry().await? {
-            let index_path = index_entry.path();
-            if !index_path.is_dir() {
-                continue;
-            }
-
-            let segments_dir = index_path.join("segments");
-            if !segments_dir.exists() {
-                continue;
-            }
-
-            let mut partition_entries = tokio::fs::read_dir(&segments_dir).await?;
-            while let Some(partition_entry) = partition_entries.next_entry().await? {
-                let partition_path = partition_entry.path();
-
-                if partition_path.is_dir() {
-                    // Check for meta.json to ensure it's a valid Tantivy index before attempting to open
-                    if partition_path.join("meta.json").exists()
-                        && let Err(e) = self.compact_partition(partition_path.clone()).await
-                    {
-                        error!("Error compacting partition {:?}: {}", partition_path, e);
-                    }
+        let mut entries = tokio::fs::read_dir(&indexes_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            // A valid Tantivy index directory always contains meta.json
+            if path.is_dir() && path.join("meta.json").exists() {
+                if let Err(e) = self.compact_index(path.clone()).await {
+                    error!("Compaction failed for {:?}: {e}", path);
                 }
             }
         }
-
         Ok(())
     }
 
-    async fn compact_partition(&self, path: PathBuf) -> Result<(), CompactionError> {
+    async fn compact_index(&self, path: PathBuf) -> Result<(), CompactionError> {
         let min_segments = self.min_segments;
 
-        // Open the index inside a blocking task since file I/O is involved
         let index = tokio::task::spawn_blocking({
-            let path_clone = path.clone();
-            move || Index::open_in_dir(path_clone)
+            let p = path.clone();
+            move || Index::open_in_dir(p)
         })
         .await??;
 
-        // Count segments
         let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let segment_readers = searcher.segment_readers();
+        let segment_count = reader.searcher().segment_readers().len();
 
-        if segment_readers.len() >= min_segments {
-            info!(
-                "Partition {:?} has {} segments (>= {}). Compacting...",
-                path,
-                segment_readers.len(),
-                min_segments
-            );
+        if segment_count < min_segments {
+            debug!("{:?} has {segment_count} segments – skipping.", path);
+            return Ok(());
+        }
 
-            let segment_ids: Vec<_> = segment_readers.iter().map(|s| s.segment_id()).collect();
+        info!(
+            "Compacting {:?}: {segment_count} segments >= {min_segments}.",
+            path
+        );
 
-            // Perform the actual compaction in a blocking thread to avoid starving Tokio
-            tokio::task::spawn_blocking(move || -> Result<(), CompactionError> {
-                // We request a writer with minimal memory because this is just a merge, not heavy ingestion
-                let mut writer = match index
-                    .writer_with_num_threads::<tantivy::TantivyDocument>(1, 15_000_000)
-                {
+        let segment_ids: Vec<_> = reader
+            .searcher()
+            .segment_readers()
+            .iter()
+            .map(|s| s.segment_id())
+            .collect();
+
+        tokio::task::spawn_blocking(move || -> Result<(), CompactionError> {
+            let mut writer =
+                match index.writer_with_num_threads::<tantivy::TantivyDocument>(1, 15_000_000) {
                     Ok(w) => w,
                     Err(TantivyError::LockFailure(_, _)) => {
-                        debug!(
-                            "Partition {:?} is locked (active ingestion). Skipping compaction.",
-                            path
-                        );
+                        debug!("{:?} is locked (active ingestion). Skipping.", path);
                         return Ok(());
                     }
                     Err(e) => return Err(e.into()),
                 };
 
-                // Dispatch the merge request
-                let _merge_future = writer.merge(&segment_ids).wait();
-                if let Err(e) = _merge_future {
-                    warn!("Merge request failed for {:?}: {}", path, e);
-                    return Ok(());
-                }
-
-                // Commit the changes so the new segment replaces the old ones in meta.json
-                if let Err(e) = writer.commit() {
-                    warn!("Error committing merged segment in {:?}: {}", path, e);
-                    return Ok(());
-                } else {
-                    info!("Successfully committed compacted segment {:?}", path);
-                }
-
-                // Block until the background merge thread finishes combining the segments
-                if let Err(e) = writer.wait_merging_threads() {
-                    warn!("Error waiting for merge in {:?}: {}", path, e);
-                    return Ok(());
-                }
-
-                Ok(())
-            })
-            .await??;
-        } else {
-            debug!(
-                "Partition {:?} has {} segments. No compaction needed.",
-                path,
-                segment_readers.len()
-            );
-        }
+            if let Err(e) = writer.merge(&segment_ids).wait() {
+                warn!("Merge failed for {:?}: {e}", path);
+                return Ok(());
+            }
+            if let Err(e) = writer.commit() {
+                warn!("Commit after merge failed for {:?}: {e}", path);
+                return Ok(());
+            }
+            if let Err(e) = writer.wait_merging_threads() {
+                warn!("Wait for merge threads failed for {:?}: {e}", path);
+                return Ok(());
+            }
+            info!("Compaction complete for {:?}.", path);
+            Ok(())
+        })
+        .await??;
 
         Ok(())
     }

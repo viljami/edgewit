@@ -1,4 +1,5 @@
 use crate::api::AppState;
+use crate::retention::dir_size;
 use axum::extract::State;
 use axum::response::Json;
 use serde::Serialize;
@@ -52,22 +53,6 @@ pub struct StoreStats {
     pub size_in_bytes: u64,
 }
 
-fn get_dir_size(path: &std::path::Path) -> u64 {
-    let mut size = 0;
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            if let Ok(metadata) = entry.metadata() {
-                if metadata.is_dir() {
-                    size += get_dir_size(&entry.path());
-                } else {
-                    size += metadata.len();
-                }
-            }
-        }
-    }
-    size
-}
-
 #[derive(Serialize, ToSchema)]
 pub struct CatIndex {
     pub health: String,
@@ -96,9 +81,7 @@ pub struct VersionResponse {
 #[utoipa::path(
     get,
     path = "/version",
-    responses(
-        (status = 200, description = "Version metadata", body = VersionResponse)
-    )
+    responses((status = 200, description = "Version metadata", body = VersionResponse))
 )]
 pub async fn version_handler() -> Json<VersionResponse> {
     Json(VersionResponse {
@@ -108,13 +91,10 @@ pub async fn version_handler() -> Json<VersionResponse> {
     })
 }
 
-/// Handler for the root endpoint, emulating the default OpenSearch response
 #[utoipa::path(
     get,
     path = "/",
-    responses(
-        (status = 200, description = "OpenSearch compatible greeting", body = Object)
-    )
+    responses((status = 200, description = "OpenSearch compatible greeting", body = Object))
 )]
 pub async fn root_handler() -> Json<Value> {
     Json(json!({
@@ -135,18 +115,15 @@ pub async fn root_handler() -> Json<Value> {
     }))
 }
 
-/// Handler for the cluster health endpoint (/_health or /_cluster/health)
 #[utoipa::path(
     get,
     path = "/_health",
-    responses(
-        (status = 200, description = "Cluster health status", body = HealthResponse)
-    )
+    responses((status = 200, description = "Cluster health status", body = HealthResponse))
 )]
 pub async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         cluster_name: "edgewit".to_string(),
-        status: "green".to_string(), // Initial placeholder: always green
+        status: "green".to_string(),
         timed_out: false,
         number_of_nodes: 1,
         active_primary_shards: 0,
@@ -154,13 +131,10 @@ pub async fn health_handler() -> Json<HealthResponse> {
     })
 }
 
-/// Handler for the statistics endpoint (/_stats)
 #[utoipa::path(
     get,
     path = "/_stats",
-    responses(
-        (status = 200, description = "Cluster and index statistics", body = StatsResponse)
-    )
+    responses((status = 200, description = "Cluster and index statistics", body = StatsResponse))
 )]
 pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse> {
     let mut num_docs: u64 = 0;
@@ -168,22 +142,29 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
     let mut total_size: u64 = 0;
 
     for def in state.registry.list() {
-        let index_dir = state.data_dir.join("indexes").join(&def.name);
-        total_size += get_dir_size(&index_dir);
+        total_size += dir_size(&state.data_dir.join("indexes").join(&def.name));
 
-        if let Ok(readers) = state.index_manager.get_all_readers(&def.name) {
-            for reader in readers {
-                if let Err(e) = reader.reload() {
-                    tracing::error!("Failed to reload reader for index '{}': {}", def.name, e);
-                }
-                num_docs += reader.searcher().num_docs();
-                num_segments += reader.searcher().segment_readers().len();
+        if let Ok(reader) = state.index_manager.get_reader(&def.name) {
+            if let Err(e) = reader.reload() {
+                tracing::error!("Failed to reload reader for '{}': {e}", def.name);
             }
+            num_docs += reader.searcher().num_docs();
+            num_segments += reader.searcher().segment_readers().len();
         }
     }
 
     metrics::gauge!("edgewit_index_docs_total").set(num_docs as f64);
     metrics::gauge!("edgewit_index_segments_total").set(num_segments as f64);
+
+    let stats = IndexStats {
+        docs: DocsStats {
+            count: num_docs,
+            deleted: 0,
+        },
+        store: StoreStats {
+            size_in_bytes: total_size,
+        },
+    };
 
     Json(StatsResponse {
         _shards: ShardsInfo {
@@ -202,33 +183,21 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
                     size_in_bytes: total_size,
                 },
             },
-            total: IndexStats {
-                docs: DocsStats {
-                    count: num_docs,
-                    deleted: 0,
-                },
-                store: StoreStats {
-                    size_in_bytes: total_size,
-                },
-            },
+            total: stats,
         },
     })
 }
 
-/// Handler for the cat indexes endpoint (/_cat/indexes)
 #[utoipa::path(
     get,
     path = "/_cat/indexes",
-    responses(
-        (status = 200, description = "List of indexes with stats", body = Vec<CatIndex>)
-    )
+    responses((status = 200, description = "List of indexes with stats", body = Vec<CatIndex>))
 )]
 pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatIndex>> {
-    let mut indices = Vec::new();
     let registered = state.registry.list();
 
     if registered.is_empty() {
-        indices.push(CatIndex {
+        return Json(vec![CatIndex {
             health: "green".to_string(),
             status: "open".to_string(),
             index: "edgewit".to_string(),
@@ -239,24 +208,24 @@ pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatI
             docs_deleted: "0".to_string(),
             store_size: "0b".to_string(),
             pri_store_size: "0b".to_string(),
-        });
-    } else {
-        for def in registered {
+        }]);
+    }
+
+    let indices = registered
+        .into_iter()
+        .map(|def| {
             let mut num_docs: u64 = 0;
-            if let Ok(readers) = state.index_manager.get_all_readers(&def.name) {
-                for reader in readers {
-                    if let Err(e) = reader.reload() {
-                        tracing::error!("Failed to reload reader for index '{}': {}", def.name, e);
-                    }
-                    num_docs += reader.searcher().num_docs();
+            if let Ok(reader) = state.index_manager.get_reader(&def.name) {
+                if let Err(e) = reader.reload() {
+                    tracing::error!("Failed to reload reader for '{}': {e}", def.name);
                 }
+                num_docs += reader.searcher().num_docs();
             }
 
-            let index_dir = state.data_dir.join("indexes").join(&def.name);
-            let size = get_dir_size(&index_dir);
-            let size_str = format!("{}b", size);
+            let size = dir_size(&state.data_dir.join("indexes").join(&def.name));
+            let size_str = format!("{size}b");
 
-            indices.push(CatIndex {
+            CatIndex {
                 health: "green".to_string(),
                 status: "open".to_string(),
                 index: def.name,
@@ -267,9 +236,9 @@ pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatI
                 docs_deleted: "0".to_string(),
                 store_size: size_str.clone(),
                 pri_store_size: size_str,
-            });
-        }
-    }
+            }
+        })
+        .collect();
 
     Json(indices)
 }
@@ -300,8 +269,7 @@ mod tests {
             registry: IndexRegistry::new(),
             data_dir: PathBuf::from("."),
         };
-        let app = app_router(state);
-        TestServer::new(app)
+        TestServer::new(app_router(state))
     }
 
     #[rstest]
@@ -310,8 +278,6 @@ mod tests {
         let server = setup_test_server();
         let response = server.get("/").await;
         response.assert_status_ok();
-
-        // Using insta for snapshot testing
         assert_json_snapshot!(response.json::<Value>(), @r###"
         {
           "cluster_name": "edgewit",
@@ -338,7 +304,6 @@ mod tests {
         let server = setup_test_server();
         let response = server.get("/_health").await;
         response.assert_status_ok();
-
         assert_json_snapshot!(response.json::<Value>(), @r###"
         {
           "active_primary_shards": 0,

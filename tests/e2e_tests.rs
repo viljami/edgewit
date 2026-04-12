@@ -65,9 +65,16 @@ async fn test_full_ingest_and_search_flow() {
     // 2. Initialize Channels
     let (wal_tx, wal_rx) = mpsc::channel(100);
     let (idx_tx, idx_rx) = mpsc::channel(100);
+    let (_purge_tx, purge_rx) = mpsc::channel(1);
 
     // 3. Spawn Indexer Thread
-    let indexer = IndexerActor::new(index_manager.clone(), registry.clone(), idx_rx, 15);
+    let indexer = IndexerActor::new(
+        index_manager.clone(),
+        registry.clone(),
+        idx_rx,
+        15,
+        purge_rx,
+    );
     tokio::spawn(async move {
         indexer.run().await;
     });

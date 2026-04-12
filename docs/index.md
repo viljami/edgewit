@@ -15,7 +15,7 @@ title: Home
 <section id="about" class="card" markdown="1">
 ## Why Edgewit?
 
-📦 **Container image:** [`ghcr.io/viljami/edgewit`](https://github.com/viljami/edgewit/pkgs/container/edgewit) (~34MB)
+📦 **Container image:** [`ghcr.io/viljami/edgewit`](https://github.com/viljami/edgewit/pkgs/container/edgewit)
 
 Edgewit provides powerful full-text search and aggregations for local observability, offline log analytics, and IoT gateway diagnostics. It avoids the memory overhead and operational complexity of a centralized cloud solution by running efficiently on constrained hardware like the Raspberry Pi.
 
@@ -23,7 +23,7 @@ Edgewit provides powerful full-text search and aggregations for local observabil
 - **OpenSearch Compatible (Subset):** Drop-in replacement for basic log collection agents, implementing a focused subset of the API.
 - **Crash-Resilient:** Custom WAL implementation built for slow SD cards with deterministic startup recovery.
 - **Declarative Indexing:** YAML-based index definitions with strict, drop-unmapped, or dynamic schema modes.
-- **Zero-Overhead Retention:** Physical time-based partitioning for fast, SD-card friendly log rotation and deletion.
+- **Single-Index Architecture:** One Tantivy index per logical index name — simple, predictable on-disk layout with no partition subdirectories.
 </section>
 
 <section id="projects" class="card" markdown="1">

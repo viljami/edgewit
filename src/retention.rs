@@ -1,10 +1,10 @@
-use crate::partition::format_partition_name;
-use crate::registry::IndexRegistry;
-use crate::schema::definition::PartitionStrategy;
-use chrono::Utc;
 use std::path::PathBuf;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tracing::{info, warn};
+
+use crate::indexer::PurgeCommand;
+use crate::registry::IndexRegistry;
 
 pub struct RetentionConfig {
     pub max_index_bytes: u64,
@@ -22,227 +22,209 @@ impl Default for RetentionConfig {
 
 impl RetentionConfig {
     pub fn from_env() -> Self {
-        let mut config = Self::default();
-
-        if let Ok(val) = std::env::var("EDGEWIT_MAX_INDEX_BYTES") {
-            if let Some(parsed) = parse_size(&val) {
-                config.max_index_bytes = parsed;
+        let mut cfg = Self::default();
+        if let Ok(v) = std::env::var("EDGEWIT_MAX_INDEX_BYTES") {
+            if let Some(n) = parse_size(&v) {
+                cfg.max_index_bytes = n;
             } else {
-                warn!("Invalid EDGEWIT_MAX_INDEX_BYTES: {}", val);
+                warn!("Invalid EDGEWIT_MAX_INDEX_BYTES: {v}");
             }
         }
-
-        if let Ok(val) = std::env::var("EDGEWIT_MAX_WAL_BYTES") {
-            if let Some(parsed) = parse_size(&val) {
-                config.max_wal_bytes = parsed;
+        if let Ok(v) = std::env::var("EDGEWIT_MAX_WAL_BYTES") {
+            if let Some(n) = parse_size(&v) {
+                cfg.max_wal_bytes = n;
             } else {
-                warn!("Invalid EDGEWIT_MAX_WAL_BYTES: {}", val);
+                warn!("Invalid EDGEWIT_MAX_WAL_BYTES: {v}");
             }
         }
-
-        config
+        cfg
     }
 }
 
-fn parse_size(size_str: &str) -> Option<u64> {
-    let s = size_str.trim().to_uppercase();
-    let (num_str, multiplier) = if s.ends_with("GB") {
-        (&s[..s.len() - 2], 1024 * 1024 * 1024)
-    } else if s.ends_with("MB") {
-        (&s[..s.len() - 2], 1024 * 1024)
-    } else if s.ends_with("KB") {
-        (&s[..s.len() - 2], 1024)
-    } else if s.ends_with('B') {
-        (&s[..s.len() - 1], 1)
-    } else {
-        (s.as_str(), 1)
+/// Recursively computes the total byte size of all files under `path`.
+pub(crate) fn dir_size(path: &std::path::Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
     };
-
-    num_str.trim().parse::<u64>().ok().map(|v| v * multiplier)
-}
-
-pub async fn run_compaction_and_retention_worker(
-    data_dir: PathBuf,
-    config: RetentionConfig,
-    registry: IndexRegistry,
-) {
-    let mut interval = tokio::time::interval(Duration::from_mins(5)); // Run every 5 minutes
-
-    loop {
-        interval.tick().await;
-        info!("Running background compaction and retention checks...");
-
-        apply_partition_retention(&data_dir, &registry).await;
-
-        let indexes_dir = data_dir.join("indexes");
-
-        // 1. Calculate Total Indexes Size
-        let index_size = get_dir_size(&indexes_dir);
-        if index_size > config.max_index_bytes {
-            warn!(
-                "Indexes size {} exceeds limit {}. Older partitions will be dropped by retention policies.",
-                index_size, config.max_index_bytes
-            );
-        } else {
-            info!(
-                "Indexes size: {} bytes (Limit: {})",
-                index_size, config.max_index_bytes
-            );
-        }
-
-        // 2. Clear Old WAL Files
-        let wal_size = get_dir_size(&data_dir) - index_size;
-        info!(
-            "Total WAL size: {} bytes (Limit: {})",
-            wal_size, config.max_wal_bytes
-        );
-
-        // TODO: Scan all partition meta.jsons to find the globally safe minimum committed offset
-        let committed_offset = 0;
-
-        if let Err(e) = cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes) {
-            warn!("Cleanup wals failed: {e}");
-        }
-    }
-}
-
-async fn apply_partition_retention(data_dir: &PathBuf, registry: &IndexRegistry) {
-    for def in registry.list() {
-        if def.partition == PartitionStrategy::None {
-            continue;
-        }
-
-        if let Some(retention_str) = &def.retention
-            && let Some(duration) = parse_retention_duration(retention_str)
-        {
-            let cutoff_date = Utc::now() - duration;
-            let cutoff_partition = format_partition_name(&cutoff_date, &def.partition);
-
-            let segments_dir = data_dir.join("indexes").join(&def.name).join("segments");
-            if let Ok(mut entries) = tokio::fs::read_dir(&segments_dir).await {
-                while let Ok(Some(entry)) = entries.next_entry().await {
-                    if let Ok(file_type) = entry.file_type().await
-                        && file_type.is_dir()
-                        && let Some(partition_name) = entry.file_name().to_str()
-                        && partition_name != "default"
-                        && partition_name < cutoff_partition.as_str()
-                    {
-                        info!(
-                            "Deleting expired partition: {} for index {}",
-                            partition_name, def.name
-                        );
-                        if let Err(e) = tokio::fs::remove_dir_all(entry.path()).await {
-                            warn!(
-                                "Failed to delete expired partition {:?}: {}",
-                                entry.path(),
-                                e
-                            );
-                        }
-                    }
+    entries
+        .flatten()
+        .map(|e| {
+            e.metadata().map_or(0, |m| {
+                if m.is_file() {
+                    m.len()
+                } else if m.is_dir() {
+                    dir_size(&e.path())
+                } else {
+                    0
                 }
-            }
-        }
-    }
+            })
+        })
+        .sum()
 }
 
-fn parse_retention_duration(retention: &str) -> Option<chrono::Duration> {
-    if retention.is_empty() {
+/// Parses a retention string like `"7d"`, `"12h"`, `"1M"` into a [`chrono::Duration`].
+pub fn parse_retention_duration(s: &str) -> Option<chrono::Duration> {
+    if s.is_empty() {
         return None;
     }
-    let (num_part, unit_part) = retention.split_at(retention.len() - 1);
-    let num = num_part.parse::<i64>().ok()?;
-    match unit_part {
-        "s" => Some(chrono::Duration::seconds(num)),
-        "m" => Some(chrono::Duration::minutes(num)),
-        "h" => Some(chrono::Duration::hours(num)),
-        "d" => Some(chrono::Duration::days(num)),
-        "w" => Some(chrono::Duration::days(num * 7)),
-        "M" => Some(chrono::Duration::days(num * 30)),
-        "y" => Some(chrono::Duration::days(num * 365)),
+    let (num_str, unit) = s.split_at(s.len() - 1);
+    let n: i64 = num_str.parse().ok()?;
+    match unit {
+        "s" => Some(chrono::Duration::seconds(n)),
+        "m" => Some(chrono::Duration::minutes(n)),
+        "h" => Some(chrono::Duration::hours(n)),
+        "d" => Some(chrono::Duration::days(n)),
+        "w" => Some(chrono::Duration::days(n * 7)),
+        "M" => Some(chrono::Duration::days(n * 30)),
+        "y" => Some(chrono::Duration::days(n * 365)),
         _ => None,
     }
+}
+
+fn parse_size(s: &str) -> Option<u64> {
+    let s = s.trim().to_uppercase();
+    let (num_str, mul) = if s.ends_with("GB") {
+        (&s[..s.len() - 2], 1_073_741_824u64)
+    } else if s.ends_with("MB") {
+        (&s[..s.len() - 2], 1_048_576u64)
+    } else if s.ends_with("KB") {
+        (&s[..s.len() - 2], 1_024u64)
+    } else if s.ends_with('B') {
+        (&s[..s.len() - 1], 1u64)
+    } else {
+        (s.as_str(), 1u64)
+    };
+    num_str.trim().parse::<u64>().ok().map(|v| v * mul)
 }
 
 fn cleanup_wals(
     data_dir: &PathBuf,
     committed_offset: u64,
     max_wal_bytes: u64,
-) -> Result<(), std::io::Error> {
-    if let Ok(entries) = std::fs::read_dir(data_dir) {
-        let mut wal_files = Vec::new();
-        let mut total_wal_size = 0;
+) -> std::io::Result<()> {
+    let Ok(entries) = std::fs::read_dir(data_dir) else {
+        return Ok(());
+    };
 
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file()
-                && path.extension().and_then(|s| s.to_str()) == Some("wal")
-                && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
-                && let Ok(start_offset) = u64::from_str_radix(file_stem, 16)
-            {
-                let size = entry.metadata()?.len();
-                wal_files.push((start_offset, path, size));
-                total_wal_size += size;
+    let mut wal_files: Vec<(u64, PathBuf, u64)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            if !path.is_file() || path.extension()?.to_str() != Some("wal") {
+                return None;
             }
-        }
+            let start = u64::from_str_radix(path.file_stem()?.to_str()?, 16).ok()?;
+            let size = e.metadata().ok()?.len();
+            Some((start, path, size))
+        })
+        .collect();
 
-        // Sort by offset (oldest first)
-        wal_files.sort_by_key(|(offset, _, _)| *offset);
+    wal_files.sort_by_key(|(offset, _, _)| *offset);
 
-        // First pass: We can safely delete any WAL file whose end offset is <= committed_offset.
-        let mut remaining_wal_files = Vec::new();
-        for (offset, path, size) in wal_files {
-            let estimated_end = offset + size;
-            if estimated_end <= committed_offset {
-                info!(
-                    "Deleting old WAL file: {:?} (end offset {} <= committed {})",
-                    path, estimated_end, committed_offset
-                );
-                if let Err(e) = std::fs::remove_file(&path) {
-                    warn!("Failed to delete old WAL file {:?}: {}", path, e);
-                } else {
-                    total_wal_size = total_wal_size.saturating_sub(size);
-                }
-            } else {
-                remaining_wal_files.push((offset, path, size));
-            }
-        }
+    let mut total: u64 = wal_files.iter().map(|(_, _, s)| s).sum();
 
-        // Second pass: Emergency Circuit Breaker
-        // If we are still exceeding max_wal_bytes, delete oldest uncommitted WAL files
-        // (This sacrifices data to save the edge device from disk exhaustion)
-        for (_, path, size) in remaining_wal_files {
-            if total_wal_size <= max_wal_bytes {
-                break;
-            }
-            warn!(
-                "EMERGENCY PRUNING: Deleting uncommitted WAL file {:?} to stay under {} limit (current size: {})",
-                path, max_wal_bytes, total_wal_size
-            );
+    // First pass: delete WAL files whose data is fully committed
+    let mut remaining = Vec::new();
+    for (start, path, size) in wal_files {
+        if start + size <= committed_offset {
+            info!("Deleting committed WAL: {:?}", path);
             if let Err(e) = std::fs::remove_file(&path) {
-                warn!("Failed to emergency delete WAL file {:?}: {}", path, e);
+                warn!("Failed to delete WAL {:?}: {e}", path);
             } else {
-                total_wal_size = total_wal_size.saturating_sub(size);
+                total = total.saturating_sub(size);
             }
+        } else {
+            remaining.push((start, path, size));
+        }
+    }
+
+    // Second pass: emergency pruning when still over the size limit
+    for (_, path, size) in remaining {
+        if total <= max_wal_bytes {
+            break;
+        }
+        warn!(
+            "EMERGENCY WAL PRUNING: {:?} (current: {total}B > limit: {max_wal_bytes}B)",
+            path
+        );
+        if let Err(e) = std::fs::remove_file(&path) {
+            warn!("Failed to emergency-delete WAL {:?}: {e}", path);
+        } else {
+            total = total.saturating_sub(size);
         }
     }
 
     Ok(())
 }
 
-fn get_dir_size(path: &std::path::Path) -> u64 {
-    let mut size = 0;
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            if let Ok(metadata) = entry.metadata() {
-                if metadata.is_file() {
-                    size += metadata.len();
-                } else if metadata.is_dir() {
-                    size += get_dir_size(&entry.path());
-                }
-            }
+/// Iterates registered indexes that declare a `retention` policy and sends
+/// a [`PurgeCommand`] to the indexer actor for each one.
+async fn apply_retention(registry: &IndexRegistry, purge_tx: &mpsc::Sender<PurgeCommand>) {
+    for def in registry.list() {
+        let Some(retention_str) = &def.retention else {
+            continue;
+        };
+        let Some(duration) = parse_retention_duration(retention_str) else {
+            warn!(
+                "Index '{}' has invalid retention value '{}' — skipping.",
+                def.name, retention_str
+            );
+            continue;
+        };
+
+        let cutoff = chrono::Utc::now() - duration;
+
+        info!(
+            "Retention: scheduling purge for '{}' (policy: {retention_str}, cutoff: {cutoff}).",
+            def.name
+        );
+
+        if let Err(e) = purge_tx
+            .send(PurgeCommand {
+                index_name: def.name.clone(),
+                cutoff,
+            })
+            .await
+        {
+            warn!("Failed to send purge command for '{}': {e}", def.name);
         }
     }
-    size
+}
+
+/// Background worker that enforces retention policies and monitors disk usage.
+/// Runs every 5 minutes.
+pub async fn run_retention_worker(
+    data_dir: PathBuf,
+    config: RetentionConfig,
+    registry: IndexRegistry,
+    purge_tx: mpsc::Sender<PurgeCommand>,
+) {
+    let mut interval = tokio::time::interval(Duration::from_secs(5 * 60));
+    loop {
+        interval.tick().await;
+        info!("Running retention checks...");
+
+        // 1. Enforce per-index retention policies via the indexer actor
+        apply_retention(&registry, &purge_tx).await;
+
+        // 2. Monitor total index size
+        let index_size = dir_size(&data_dir.join("indexes"));
+        if index_size > config.max_index_bytes {
+            warn!(
+                "Index size {index_size}B exceeds limit {}B.",
+                config.max_index_bytes
+            );
+        } else {
+            info!("Index size: {index_size}B / {}B.", config.max_index_bytes);
+        }
+
+        // 3. Clean up old WAL files
+        // TODO: derive committed_offset from Tantivy segment metadata on startup
+        let committed_offset: u64 = 0;
+        if let Err(e) = cleanup_wals(&data_dir, committed_offset, config.max_wal_bytes) {
+            warn!("WAL cleanup failed: {e}");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -253,20 +235,19 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn test_get_dir_size() {
-        let temp_dir = TempDir::new().unwrap();
-        let file1_path = temp_dir.path().join("file1.txt");
-        let mut file1 = File::create(file1_path).unwrap();
-        file1.write_all(&[0u8; 1024]).unwrap();
-
-        let sub_dir = temp_dir.path().join("sub");
-        std::fs::create_dir(&sub_dir).unwrap();
-        let file2_path = sub_dir.join("file2.txt");
-        let mut file2 = File::create(file2_path).unwrap();
-        file2.write_all(&[0u8; 2048]).unwrap();
-
-        let size = get_dir_size(temp_dir.path());
-        assert_eq!(size, 3072);
+    fn test_dir_size() {
+        let dir = TempDir::new().unwrap();
+        File::create(dir.path().join("a.txt"))
+            .unwrap()
+            .write_all(&[0u8; 1024])
+            .unwrap();
+        let sub = dir.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        File::create(sub.join("b.txt"))
+            .unwrap()
+            .write_all(&[0u8; 2048])
+            .unwrap();
+        assert_eq!(dir_size(dir.path()), 3072);
     }
 
     #[test]
@@ -288,6 +269,7 @@ mod tests {
             Some(chrono::Duration::days(1825))
         );
         assert_eq!(parse_retention_duration("invalid"), None);
+        assert_eq!(parse_retention_duration(""), None);
     }
 
     #[test]
@@ -302,66 +284,60 @@ mod tests {
 
     #[test]
     fn test_cleanup_wals() {
-        let temp_dir = TempDir::new().unwrap();
-        let dir_path = temp_dir.path().to_path_buf();
+        let dir = TempDir::new().unwrap();
+        let p = dir.path().to_path_buf();
 
-        // Create wal files
-        // 0.wal, size 100
-        let mut w1 = File::create(dir_path.join("0000000000000000.wal")).unwrap();
-        w1.write_all(&[0u8; 100]).unwrap();
+        File::create(p.join("0000000000000000.wal"))
+            .unwrap()
+            .write_all(&[0u8; 100])
+            .unwrap();
+        File::create(p.join("0000000000000064.wal"))
+            .unwrap()
+            .write_all(&[0u8; 50])
+            .unwrap();
+        File::create(p.join("0000000000000096.wal"))
+            .unwrap()
+            .write_all(&[0u8; 200])
+            .unwrap();
+        File::create(p.join("other.txt"))
+            .unwrap()
+            .write_all(&[0u8; 100])
+            .unwrap();
 
-        // 100.wal, size 50 (starts at 100 in hex: 0000000000000064)
-        let mut w2 = File::create(dir_path.join("0000000000000064.wal")).unwrap();
-        w2.write_all(&[0u8; 50]).unwrap();
+        // 0.wal ends at 100, 100.wal ends at 150 — both <= committed=150 → deleted
+        // 150.wal ends at 350 — > 150 → kept
+        cleanup_wals(&p, 150, 1000).unwrap();
 
-        // 150.wal, size 200 (starts at 150 in hex: 0000000000000096)
-        let mut w3 = File::create(dir_path.join("0000000000000096.wal")).unwrap();
-        w3.write_all(&[0u8; 200]).unwrap();
-
-        // Create a non-wal file to ensure it gets ignored
-        let mut other = File::create(dir_path.join("other.txt")).unwrap();
-        other.write_all(&[0u8; 100]).unwrap();
-
-        // Cleanup with committed_offset = 150, max limit = 1000 (no emergency pruning)
-        // - 0.wal (ends at 100) -> 100 <= 150, should be deleted
-        // - 100.wal (ends at 150) -> 150 <= 150, should be deleted
-        // - 150.wal (ends at 350) -> 350 > 150, should be kept
-        cleanup_wals(&dir_path, 150, 1000).expect("wal cleanup failed");
-
-        // Check which files exist
-        assert!(!dir_path.join("0000000000000000.wal").exists());
-        assert!(!dir_path.join("0000000000000064.wal").exists());
-        assert!(dir_path.join("0000000000000096.wal").exists());
-        assert!(dir_path.join("other.txt").exists());
+        assert!(!p.join("0000000000000000.wal").exists());
+        assert!(!p.join("0000000000000064.wal").exists());
+        assert!(p.join("0000000000000096.wal").exists());
+        assert!(p.join("other.txt").exists());
     }
 
     #[test]
     fn test_emergency_wal_pruning() {
-        let temp_dir = TempDir::new().unwrap();
-        let dir_path = temp_dir.path().to_path_buf();
+        let dir = TempDir::new().unwrap();
+        let p = dir.path().to_path_buf();
 
-        // 0.wal, size 100
-        let mut w1 = File::create(dir_path.join("0000000000000000.wal")).unwrap();
-        w1.write_all(&[0u8; 100]).unwrap();
+        File::create(p.join("0000000000000000.wal"))
+            .unwrap()
+            .write_all(&[0u8; 100])
+            .unwrap();
+        File::create(p.join("0000000000000064.wal"))
+            .unwrap()
+            .write_all(&[0u8; 200])
+            .unwrap();
+        File::create(p.join("000000000000012c.wal"))
+            .unwrap()
+            .write_all(&[0u8; 300])
+            .unwrap();
 
-        // 100.wal, size 200
-        let mut w2 = File::create(dir_path.join("0000000000000064.wal")).unwrap();
-        w2.write_all(&[0u8; 200]).unwrap();
+        // Total 600B, nothing committed, limit 400B
+        // Deletes oldest first until within limit
+        cleanup_wals(&p, 0, 400).unwrap();
 
-        // 300.wal, size 300
-        let mut w3 = File::create(dir_path.join("000000000000012c.wal")).unwrap();
-        w3.write_all(&[0u8; 300]).unwrap();
-
-        // Total size = 600.
-        // Nothing is committed yet (committed_offset = 0)
-        // Max limit is 400.
-        // This should trigger emergency pruning. It will delete oldest (0.wal) first.
-        // New size = 500. Still > 400. Deletes 100.wal.
-        // New size = 300. <= 400. Stops.
-        cleanup_wals(&dir_path, 0, 400).expect("wal cleanup failed");
-
-        assert!(!dir_path.join("0000000000000000.wal").exists());
-        assert!(!dir_path.join("0000000000000064.wal").exists());
-        assert!(dir_path.join("000000000000012c.wal").exists());
+        assert!(!p.join("0000000000000000.wal").exists());
+        assert!(!p.join("0000000000000064.wal").exists());
+        assert!(p.join("000000000000012c.wal").exists());
     }
 }

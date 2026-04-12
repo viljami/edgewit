@@ -1,4 +1,4 @@
-.PHONY: all fmt clippy test clean setup teardown
+.PHONY: all fmt clippy test test-e2e test-e2e-skip-build clean setup teardown
 
 all: fmt clippy test
 
@@ -19,6 +19,14 @@ clippy:
 test: setup
 	cargo test
 	$(MAKE) teardown
+
+test-e2e:
+	@echo "Running container end-to-end tests (includes docker build)..."
+	bash scripts/test-container.sh
+
+test-e2e-skip-build:
+	@echo "Running container end-to-end tests (skipping docker build)..."
+	bash scripts/test-container.sh --skip-build
 
 clean: teardown
 	cargo clean
