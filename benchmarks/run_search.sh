@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/data"
 
-EDGEWIT_URL="http://localhost:9200/http_logs/_search"
+EDGEWIT_URL="http://localhost:9200/indexes/http_logs/_search"
 OPENSEARCH_URL="http://localhost:9201/http_logs/_search"
 
 echo "==> Search & Aggregation Benchmark (Phase 3) <=="
@@ -88,7 +88,7 @@ cat <<EOF > "$AGG_PAYLOAD"
   "aggs": {
     "status_codes": {
       "terms": {
-        "field": "response"
+        "field": "_source.response"
       }
     }
   }
