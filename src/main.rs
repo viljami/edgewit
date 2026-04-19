@@ -91,6 +91,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let prometheus_handle =
         metrics_exporter_prometheus::PrometheusBuilder::new().install_recorder()?;
+    // Initialize commonly expected metrics so the /metrics endpoint exposes them
+    // even before any code path has incremented/recorded values. This ensures the
+    // e2e tests that probe for metric names (e.g. `edgewit_ingest_requests_total`)
+    // will find those lines present in the Prometheus output.
+    metrics::gauge!("edgewit_index_docs_total").set(0.0);
+    metrics::gauge!("edgewit_index_segments_total").set(0.0);
+    // Counters: increment by 0 so they're registered with the recorder.
+    metrics::counter!("edgewit_ingest_requests_total").increment(0);
+    metrics::counter!("edgewit_ingest_bytes_total").increment(0);
+    metrics::counter!("edgewit_search_requests_total").increment(0);
+    // Histogram: record a zero value so the metric is registered.
+    metrics::histogram!("edgewit_search_latency_seconds").record(0.0);
 
     let state = AppState {
         prometheus_handle,

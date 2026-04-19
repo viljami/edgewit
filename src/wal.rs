@@ -3,7 +3,7 @@ use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::indexer::IndexerEvent;
 
@@ -47,12 +47,50 @@ impl WalAppender {
         }
     }
 
+    /// Provide an actionable hint based on common IO error kinds.
+    fn io_error_hint(path: &Path, err: &std::io::Error) -> String {
+        use std::io::ErrorKind;
+        match err.kind() {
+            ErrorKind::NotFound => format!(
+                "{} (path: {:?}). Hint: The file or directory does not exist. \
+                 Verify the configured data directory and make sure the WAL file path is correct.",
+                err, path
+            ),
+            ErrorKind::PermissionDenied => format!(
+                "{} (path: {:?}). Hint: Permission denied. \
+                 Check file/directory ownership and permissions. \
+                 If running in a container, ensure the container user owns the mounted volume (e.g. /data) or adjust the Dockerfile to chown the directory during image build.",
+                err, path
+            ),
+            ErrorKind::AlreadyExists => format!(
+                "{} (path: {:?}). Hint: Name collision — check for unexpected files/directories at the WAL path.",
+                err, path
+            ),
+            ErrorKind::Interrupted => format!(
+                "{} (path: {:?}). Hint: Operation was interrupted; retrying might succeed.",
+                err, path
+            ),
+            ErrorKind::UnexpectedEof => format!(
+                "{} (path: {:?}). Hint: Partial read encountered. The WAL file may be truncated or corrupted.",
+                err, path
+            ),
+            _ => format!(
+                "{} (path: {:?}). Hint: Possible causes include read-only mounts, no space left on device, or hardware I/O errors.",
+                err, path
+            ),
+        }
+    }
+
     /// Starts the blocking event loop. This should be spawned via `tokio::task::spawn_blocking`
     /// or `std::thread::spawn`.
     pub fn run(mut self) {
         // Ensure the directory exists
         if let Err(e) = std::fs::create_dir_all(&self.dir) {
-            error!("Failed to create WAL directory at {:?}: {e}", self.dir);
+            error!(
+                "Failed to create WAL directory at {:?}: {}. Hint: Check filesystem permissions and parent directories. \
+                 If running in Docker, ensure the volume is mounted and the container user can create files under this path.",
+                self.dir, e
+            );
             return;
         }
 
@@ -64,7 +102,8 @@ impl WalAppender {
         let file = match OpenOptions::new().create(true).append(true).open(&wal_path) {
             Ok(f) => f,
             Err(e) => {
-                error!("Failed to open WAL file {wal_path:?}: {e}");
+                let hint = Self::io_error_hint(&wal_path, &e);
+                error!("Failed to open WAL file: {hint}");
                 return;
             }
         };
@@ -115,33 +154,46 @@ impl WalAppender {
                 let mut frame_success = true;
 
                 if let Err(e) = writer.write_all(&(index_bytes.len() as u16).to_le_bytes()) {
-                    error!("WAL failed to write index length: {}", e);
+                    let hint = Self::io_error_hint(&wal_path, &e);
+                    error!("WAL failed to write index length: {}", hint);
                     frame_success = false;
                 }
-                if frame_success && writer.write_all(index_bytes).is_err() {
-                    error!("WAL failed to write index bytes");
-                    frame_success = false;
+                if frame_success {
+                    if let Err(e) = writer.write_all(index_bytes) {
+                        let hint = Self::io_error_hint(&wal_path, &e);
+                        error!("WAL failed to write index bytes: {}", hint);
+                        frame_success = false;
+                    }
                 }
-                if frame_success
-                    && writer
-                        .write_all(&(payload_bytes.len() as u32).to_le_bytes())
-                        .is_err()
-                {
-                    error!("WAL failed to write payload length");
-                    frame_success = false;
+                if frame_success {
+                    if let Err(e) = writer.write_all(&(payload_bytes.len() as u32).to_le_bytes()) {
+                        let hint = Self::io_error_hint(&wal_path, &e);
+                        error!("WAL failed to write payload length: {}", hint);
+                        frame_success = false;
+                    }
                 }
-                if frame_success && writer.write_all(payload_bytes).is_err() {
-                    error!("WAL failed to write payload bytes");
-                    frame_success = false;
+                if frame_success {
+                    if let Err(e) = writer.write_all(payload_bytes) {
+                        let hint = Self::io_error_hint(&wal_path, &e);
+                        error!("WAL failed to write payload bytes: {}", hint);
+                        frame_success = false;
+                    }
                 }
-                if frame_success && writer.write_all(&checksum.to_le_bytes()).is_err() {
-                    error!("WAL failed to write checksum");
-                    frame_success = false;
+                if frame_success {
+                    if let Err(e) = writer.write_all(&checksum.to_le_bytes()) {
+                        let hint = Self::io_error_hint(&wal_path, &e);
+                        error!("WAL failed to write checksum: {}", hint);
+                        frame_success = false;
+                    }
                 }
 
                 if !frame_success {
                     batch_success = false;
-                    break; // Stop writing the batch if the disk is failing
+                    // Stop writing the batch if the disk is failing
+                    warn!(
+                        "Aborting current WAL batch due to write failure. Subsequent requests will receive an error response."
+                    );
+                    break;
                 }
 
                 let frame_len = 2 + index_bytes.len() + 4 + payload_bytes.len() + 4;
@@ -152,17 +204,23 @@ impl WalAppender {
             }
 
             // Flush the userspace buffer to the OS
-            if batch_success && let Err(e) = writer.flush() {
-                error!("WAL flush error: {}", e);
-                batch_success = false;
+            if batch_success {
+                if let Err(e) = writer.flush() {
+                    let hint = Self::io_error_hint(&wal_path, &e);
+                    error!("WAL flush error: {}", hint);
+                    batch_success = false;
+                }
             }
 
             // Sync the OS buffer to the physical disk (fsync)
             // This guarantees durability. If the Pi loses power after this returns,
             // the data is safe.
-            if batch_success && let Err(e) = writer.get_ref().sync_data() {
-                error!("WAL sync_data error: {}", e);
-                batch_success = false;
+            if batch_success {
+                if let Err(e) = writer.get_ref().sync_data() {
+                    let hint = Self::io_error_hint(&wal_path, &e);
+                    error!("WAL sync_data error: {}", hint);
+                    batch_success = false;
+                }
             }
 
             // Rotate the WAL file if it gets too large (e.g., > 32 MB)
@@ -182,7 +240,9 @@ impl WalAppender {
                         current_file_size = 0;
                     }
                     Err(e) => {
-                        error!("Failed to rotate WAL file: {}", e);
+                        let hint = Self::io_error_hint(&wal_path, &e);
+                        error!("Failed to rotate WAL file: {}", hint);
+                        // On rotation failure we continue using the old writer; future syncs may still fail.
                     }
                 }
             }
@@ -221,12 +281,25 @@ impl WalReader {
     pub fn new(path: &Path, start_offset: u64) -> std::io::Result<Self> {
         use std::io::{Seek, SeekFrom};
 
-        let mut file = std::fs::File::open(path)?;
-        file.seek(SeekFrom::Start(start_offset))?;
-        Ok(Self {
-            file,
-            current_offset: start_offset,
-        })
+        match std::fs::File::open(path) {
+            Ok(mut file) => {
+                if let Err(e) = file.seek(SeekFrom::Start(start_offset)) {
+                    let hint = WalAppender::io_error_hint(path, &e);
+                    error!("Failed to seek WAL file: {}", hint);
+                    return Err(e);
+                }
+                Ok(Self {
+                    file,
+                    current_offset: start_offset,
+                })
+            }
+            Err(e) => {
+                // Provide an actionable log message before returning the error.
+                let hint = WalAppender::io_error_hint(path, &e);
+                error!("Failed to open WAL file for reading: {}", hint);
+                Err(e)
+            }
+        }
     }
 
     pub fn next_frame(&mut self) -> std::io::Result<Option<(IngestEvent, u64)>> {

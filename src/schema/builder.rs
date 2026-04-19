@@ -1,5 +1,5 @@
 use tantivy::schema::{
-    BytesOptions, DateOptions, IndexRecordOption, NumericOptions, STORED, Schema,
+    BytesOptions, DateOptions, FAST, IndexRecordOption, NumericOptions, STORED, Schema, TEXT,
     TextFieldIndexing, TextOptions,
 };
 use thiserror::Error;
@@ -128,12 +128,13 @@ pub fn build_schema(definition: &IndexDefinition) -> Result<Schema, SchemaBuilde
     // It is fast and stored to allow quick full-document retrieval.
     builder.add_json_field("_source", STORED);
 
-    // If dynamic mode is enabled, we could catch unmapped fields in a dynamic JSON field,
-    // but for now, we rely on _source for document retention, and explicitly mapped fields
-    // for indexing and search, to maintain predictable performance at the edge.
+    // If dynamic mode is enabled, add a catch-all dynamic JSON field for indexing.
+    // This allows unmapped fields to be indexed (at potential memory cost) while
+    // preserving the original document in `_source`.
     if definition.mode == SchemaMode::Dynamic {
-        // Option to add a catch-all dynamic JSON field for indexing if desired:
-        // builder.add_json_field("_dynamic", TEXT | FAST);
+        // Add a dynamic JSON field that indexes incoming unmapped keys.
+        // Use Tantivy JSON indexing flags (TEXT | FAST) to enable search and fast access.
+        builder.add_json_field("_dynamic", TEXT | FAST);
     }
 
     Ok(builder.build())

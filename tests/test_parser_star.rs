@@ -1,5 +1,5 @@
 use tantivy::query::QueryParser;
-use tantivy::{Index, doc, schema::*};
+use tantivy::{Index, schema::*};
 
 #[test]
 fn test_parser_star() {

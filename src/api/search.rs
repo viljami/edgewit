@@ -91,9 +91,16 @@ fn execute_search(
         let searcher = reader.searcher();
         let schema = searcher.index().schema();
 
-        let source_field = match schema.get_field("_source") {
-            Ok(f) => f,
-            Err(_) => continue,
+        // Prefer the dynamic catch-all `_dynamic` field (if present) for query parsing,
+        // as it indexes unmapped fields for simple term queries. Fall back to `_source`
+        // for schemas that do not include `_dynamic`.
+        let source_field = if let Ok(f) = schema.get_field("_dynamic") {
+            f
+        } else if let Ok(f) = schema.get_field("_source") {
+            f
+        } else {
+            // No usable indexed field available for query parsing on this reader.
+            continue;
         };
 
         let query_parser = QueryParser::for_index(searcher.index(), vec![source_field]);

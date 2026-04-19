@@ -43,8 +43,9 @@ RUN apt-get update && \
 # Create a non-root user and group for security
 RUN groupadd -r edgewit && useradd -r -g edgewit -s /bin/false edgewit
 
-# Create the data directory for the WAL and Tantivy segments
-RUN mkdir -p /data/indexes && chown -R edgewit:edgewit /data/indexes
+# Create the data directory for the WAL and Tantivy segments and ensure proper ownership/permissions
+# Ensure /data (and subdirs) are owned by the non-root `edgewit` user so runtime writes (WAL, indexes) succeed.
+RUN mkdir -p /data/indexes && chown -R edgewit:edgewit /data && chmod -R 0755 /data
 
 WORKDIR /app
 

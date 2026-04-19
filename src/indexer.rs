@@ -149,15 +149,41 @@ impl IndexerActor {
         let schema = index.schema();
 
         // Build top-level document: explicit schema fields + full payload in `_source`
+        // Additionally, for dynamic-mode indexes, populate a `_dynamic` text field with
+        // concatenated unmapped values so simple term searches on unmapped keys can
+        // be matched against this catch-all field.
         let mut root = serde_json::Map::new();
+        let mut dynamic_parts: Vec<String> = Vec::new();
         if let serde_json::Value::Object(map) = &source {
             for (k, v) in map {
                 if def.fields.contains_key(k) && !v.is_null() {
+                    // Known/mapped field — preserve as top-level for stored/indexed access.
                     root.insert(k.clone(), v.clone());
+                } else if !v.is_null() {
+                    // Unmapped field — collect a text representation for the `_dynamic` field.
+                    // Prefer simple scalar string representations; fall back to JSON for complex types.
+                    match v {
+                        serde_json::Value::String(s) => dynamic_parts.push(s.clone()),
+                        serde_json::Value::Number(n) => dynamic_parts.push(n.to_string()),
+                        serde_json::Value::Bool(b) => dynamic_parts.push(b.to_string()),
+                        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                            if let Ok(s) = serde_json::to_string(v) {
+                                dynamic_parts.push(s);
+                            }
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
+        // Always embed the original JSON document for full retrieval via `_source`.
         root.insert("_source".to_string(), source);
+
+        // If this index is in Dynamic mode and we collected unmapped tokens, add `_dynamic`.
+        if def.mode == crate::schema::definition::SchemaMode::Dynamic && !dynamic_parts.is_empty() {
+            let joined = dynamic_parts.join(" ");
+            root.insert("_dynamic".to_string(), serde_json::Value::String(joined));
+        }
 
         let doc_str = serde_json::to_string(&root).map_err(|e| e.to_string())?;
         let doc = TantivyDocument::parse_json(&schema, &doc_str)
