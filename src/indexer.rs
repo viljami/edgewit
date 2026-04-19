@@ -185,6 +185,9 @@ impl IndexerActor {
             root.insert("_dynamic".to_string(), serde_json::Value::String(joined));
         }
 
+        // Serialize document and parse into a Tantivy document. No compatibility
+        // fallback is performed: if the index schema does not accept the written
+        // values, parsing will fail and the error will be returned.
         let doc_str = serde_json::to_string(&root).map_err(|e| e.to_string())?;
         let doc = TantivyDocument::parse_json(&schema, &doc_str)
             .map_err(|e| format!("Failed to parse tantivy doc: {e}"))?;

@@ -158,34 +158,30 @@ impl WalAppender {
                     error!("WAL failed to write index length: {}", hint);
                     frame_success = false;
                 }
-                if frame_success {
-                    if let Err(e) = writer.write_all(index_bytes) {
+                if frame_success
+                    && let Err(e) = writer.write_all(index_bytes) {
                         let hint = Self::io_error_hint(&wal_path, &e);
                         error!("WAL failed to write index bytes: {}", hint);
                         frame_success = false;
                     }
-                }
-                if frame_success {
-                    if let Err(e) = writer.write_all(&(payload_bytes.len() as u32).to_le_bytes()) {
+                if frame_success
+                    && let Err(e) = writer.write_all(&(payload_bytes.len() as u32).to_le_bytes()) {
                         let hint = Self::io_error_hint(&wal_path, &e);
                         error!("WAL failed to write payload length: {}", hint);
                         frame_success = false;
                     }
-                }
-                if frame_success {
-                    if let Err(e) = writer.write_all(payload_bytes) {
+                if frame_success
+                    && let Err(e) = writer.write_all(payload_bytes) {
                         let hint = Self::io_error_hint(&wal_path, &e);
                         error!("WAL failed to write payload bytes: {}", hint);
                         frame_success = false;
                     }
-                }
-                if frame_success {
-                    if let Err(e) = writer.write_all(&checksum.to_le_bytes()) {
+                if frame_success
+                    && let Err(e) = writer.write_all(&checksum.to_le_bytes()) {
                         let hint = Self::io_error_hint(&wal_path, &e);
                         error!("WAL failed to write checksum: {}", hint);
                         frame_success = false;
                     }
-                }
 
                 if !frame_success {
                     batch_success = false;
@@ -204,24 +200,22 @@ impl WalAppender {
             }
 
             // Flush the userspace buffer to the OS
-            if batch_success {
-                if let Err(e) = writer.flush() {
+            if batch_success
+                && let Err(e) = writer.flush() {
                     let hint = Self::io_error_hint(&wal_path, &e);
                     error!("WAL flush error: {}", hint);
                     batch_success = false;
                 }
-            }
 
             // Sync the OS buffer to the physical disk (fsync)
             // This guarantees durability. If the Pi loses power after this returns,
             // the data is safe.
-            if batch_success {
-                if let Err(e) = writer.get_ref().sync_data() {
+            if batch_success
+                && let Err(e) = writer.get_ref().sync_data() {
                     let hint = Self::io_error_hint(&wal_path, &e);
                     error!("WAL sync_data error: {}", hint);
                     batch_success = false;
                 }
-            }
 
             // Rotate the WAL file if it gets too large (e.g., > 32 MB)
             if batch_success && current_file_size >= 32 * 1024 * 1024 {

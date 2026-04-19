@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use tantivy::{
     Document,
     aggregation::{
@@ -42,7 +43,7 @@ pub struct SearchResponse {
     pub _shards: ShardsInfo,
     pub hits: HitsInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub aggregations: Option<AggregationResults>,
+    pub aggregations: Option<JsonValue>,
 }
 
 #[derive(Serialize, Debug)]
@@ -191,6 +192,58 @@ fn execute_search(
     metrics::histogram!("edgewit_search_latency_seconds").record(start.elapsed().as_secs_f64());
     metrics::counter!("edgewit_search_requests_total").increment(1);
 
+    // Convert aggregation results into JSON and normalize numeric values where
+    // floating-point values are mathematically whole numbers (e.g. 145.0 -> 145)
+    let aggregations_json: Option<JsonValue> = match (global_aggs, aggs) {
+        (Some(res), Some(req)) => {
+            // into_final_result returns a Result<AggregationResults, _>
+            if let Some(agg_res) = res
+                .into_final_result(req, AggregationLimitsGuard::default())
+                .ok()
+            {
+                // Serialize the AggregationResults into a serde_json::Value
+                if let Ok(mut v) = serde_json::to_value(agg_res) {
+                    // Recursively transform numeric values that are floats but represent whole numbers
+                    fn normalize_numbers(val: &mut serde_json::Value) {
+                        match val {
+                            serde_json::Value::Number(n) => {
+                                // If it's an f64 (non-integer stored as float) and whole, convert to integer
+                                if n.is_f64() {
+                                    if let Some(f) = n.as_f64() {
+                                        if f.fract() == 0.0 {
+                                            let i = f as i64;
+                                            *val = serde_json::Value::Number(
+                                                serde_json::Number::from(i),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            serde_json::Value::Array(arr) => {
+                                for item in arr.iter_mut() {
+                                    normalize_numbers(item);
+                                }
+                            }
+                            serde_json::Value::Object(map) => {
+                                for (_k, v) in map.iter_mut() {
+                                    normalize_numbers(v);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    normalize_numbers(&mut v);
+                    Some(v)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
     Ok(SearchResponse {
         took,
         timed_out: false,
@@ -208,12 +261,7 @@ fn execute_search(
             max_score,
             hits,
         },
-        aggregations: match (global_aggs, aggs) {
-            (Some(res), Some(req)) => res
-                .into_final_result(req, AggregationLimitsGuard::default())
-                .ok(),
-            _ => None,
-        },
+        aggregations: aggregations_json,
     })
 }
 

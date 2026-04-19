@@ -128,13 +128,20 @@ pub fn build_schema(definition: &IndexDefinition) -> Result<Schema, SchemaBuilde
     // It is fast and stored to allow quick full-document retrieval.
     builder.add_json_field("_source", STORED);
 
-    // If dynamic mode is enabled, add a catch-all dynamic JSON field for indexing.
+    // If dynamic mode is enabled, add a catch-all dynamic text field for indexing.
     // This allows unmapped fields to be indexed (at potential memory cost) while
     // preserving the original document in `_source`.
     if definition.mode == SchemaMode::Dynamic {
-        // Add a dynamic JSON field that indexes incoming unmapped keys.
-        // Use Tantivy JSON indexing flags (TEXT | FAST) to enable search and fast access.
-        builder.add_json_field("_dynamic", TEXT | FAST);
+        // Build text options for the dynamic field so it behaves like other text fields.
+        let mut dyn_options = TextOptions::default();
+        dyn_options = dyn_options.set_indexing_options(
+            TextFieldIndexing::default()
+                .set_tokenizer("default")
+                .set_index_option(IndexRecordOption::WithFreqsAndPositions),
+        );
+        // Store the dynamic field so it can be retrieved if needed.
+        dyn_options = dyn_options.set_stored();
+        builder.add_text_field("_dynamic", dyn_options);
     }
 
     Ok(builder.build())

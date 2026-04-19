@@ -106,6 +106,7 @@ docker run -d \
   -p "${PERSIST_PORT}:9200" \
   -v "${PERSIST_VOLUME}:/data" \
   -e RUST_LOG=info \
+  -e EDGEWIT_COMMIT_INTERVAL_SECS=1 \
   "${IMAGE}" >/dev/null
 
 # Wait again for readiness

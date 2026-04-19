@@ -94,7 +94,10 @@ In edge environments, logging formats can change rapidly. The schema `mode` allo
 
 - **`strict`**: If an incoming JSON document contains a field that is _not_ defined in the `fields` section, the entire document is rejected with a `400 Bad Request`.
 - **`drop_unmapped`**: If a document contains undefined fields, the document is ingested, but the unknown fields are silently discarded. This guarantees only explicitly mapped data takes up disk space.
-- **`dynamic`** (Default): All incoming fields are accepted. Unknown fields are preserved in `_source` but only explicitly defined fields are indexed for search. Recommended for development; use `drop_unmapped` or `strict` in production to prevent schema bloat.
+- **`dynamic`** (Default): All incoming fields are accepted. Unknown fields are preserved in `_source`. Additionally, Edgewit now creates a dedicated `_dynamic` text field for indexes configured with `mode: dynamic` and populates it with a concatenated textual representation of any unmapped fields. This enables simple term-style queries (for example `q=message:hello`) to match unmapped document fields without requiring explicit mappings.
+
+  Recommendation:
+  - Prefer explicit field mappings in your index definitions for any fields you intend to search, filter, or aggregate. Use `mode: dynamic` for flexible development workflows, but prefer `mode: drop_unmapped` or `mode: strict` in production to avoid schema surprises and to ensure predictable storage and query behavior.
 
 ---
 

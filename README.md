@@ -37,6 +37,27 @@ For the full detailed results and methodology, see [BENCHMARK_PLAN.md](BENCHMARK
 
 ## Quick Start
 
+### Breaking change: `_dynamic` field (Important)
+
+Note: In a recent breaking change `_dynamic` is now a dedicated text field used for indexing unmapped fields. This improves query performance and simplifies schema semantics, but it is not backwards compatible with older deployments that stored `_dynamic` as a JSON/object field.
+
+What this means for you:
+
+- New versions will always write `_dynamic` as a plain string for dynamic indexes. If an existing on-disk index was created with an older schema expecting `_dynamic` as a JSON/object, parsing new documents may fail.
+- When upgrading production systems or test volumes that contain persisted indexes, you must either:
+  - Recreate or reindex the affected indexes after upgrade; or
+  - Remove and recreate the on-disk index directories (or volumes) used by older versions.
+
+Quick remediation steps (dev/test):
+
+- Remove test Docker volume used by persistence tests:
+  docker volume rm edgewit-e2e-persist-vol
+- Recreate the index or reindex your data if you rely on `_dynamic` previously being an object.
+
+Best practice:
+
+- Prefer explicit field mappings in your index definitions for any fields you intend to search/filter/aggregate. Use `mode: dynamic` for convenience during development, but use `mode: drop_unmapped` or `strict` in production to avoid schema surprises and to ensure predictable storage and query behavior.
+
 ### Running Locally (Native)
 
 You will need the Rust toolchain installed.

@@ -32,15 +32,15 @@ assert_status   "GET /_search?q=*  →  200"                   "200" "$resp"
 assert_json_gte "/_search?q=*: total ≥ 7"                    ".hits.total.value" 7 "$resp"
 
 # Term search
-resp=$(http_get "${MAIN_URL}/indexes/e2e-logs/_search?q=message:hello")
-assert_status   "GET /_search?q=message:hello  →  200"       "200" "$resp"
-assert_json_eq  "/_search?q=message:hello: exactly 1 hit"    ".hits.total.value" "1" "$resp"
-assert_json_eq  "/_search?q=message:hello: correct message"  ".hits.hits[0]._source.message" "hello container world" "$resp"
+resp=$(http_get "${MAIN_URL}/indexes/e2e-logs/_search?q=_dynamic:hello")
+assert_status   "GET /_search?q=_dynamic:hello  →  200"       "200" "$resp"
+assert_json_eq  "/_search?q=_dynamic:hello: exactly 1 hit"    ".hits.total.value" "1" "$resp"
+assert_json_eq  "/_search?q=_dynamic:hello: correct message"  ".hits.hits[0]._source.message" "hello container world" "$resp"
 
 # Level filter
-resp=$(http_get "${MAIN_URL}/indexes/e2e-logs/_search?q=level:WARN")
-assert_status   "GET /_search?q=level:WARN  →  200"          "200" "$resp"
-assert_json_gte "/_search?q=level:WARN: ≥ 2 hits"            ".hits.total.value" 2 "$resp"
+resp=$(http_get "${MAIN_URL}/indexes/e2e-logs/_search?q=_dynamic:WARN")
+assert_status   "GET /_search?q=_dynamic:WARN  →  200"          "200" "$resp"
+assert_json_gte "/_search?q=_dynamic:WARN: ≥ 2 hits"            ".hits.total.value" 2 "$resp"
 
 # POST – match_all with size limit
 resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"match_all":{}},"size":5}')
@@ -48,17 +48,17 @@ assert_status        "POST /_search match_all size=5  →  200" "200" "$resp"
 assert_json_array_len "POST /_search size=5: 5 hits returned" ".hits.hits" 5 "$resp"
 
 # POST – match query
-resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"match":{"message":"bulk"}},"size":10}')
+resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"match":{"_dynamic":"bulk"}},"size":10}')
 assert_status   "POST /_search match:bulk  →  200"           "200" "$resp"
 assert_json_gte "POST /_search match:bulk: ≥ 4 hits"         ".hits.total.value" 4 "$resp"
 
 # POST – query_string DSL
-resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"query_string":{"query":"message:shutdown"}},"size":10}')
+resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"query_string":{"query":"_dynamic:shutdown"}},"size":10}')
 assert_status   "POST /_search query_string:shutdown  →  200" "200" "$resp"
 assert_json_eq  "POST /_search query_string: exactly 1 hit"   ".hits.total.value" "1" "$resp"
 
 # POST – bool/must
-resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"bool":{"must":[{"match":{"level":"INFO"}}]}},"size":10}')
+resp=$(http_post "${MAIN_URL}/indexes/e2e-logs/_search" "application/json" '{"query":{"bool":{"must":[{"match":{"_dynamic":"INFO"}}]}},"size":10}')
 assert_status   "POST /_search bool/must:INFO  →  200"        "200" "$resp"
 assert_json_gte "POST /_search bool/must:INFO: ≥ 2 hits"      ".hits.total.value" 2 "$resp"
 
@@ -69,9 +69,9 @@ assert_json_array_len "POST /_search pagination: 2 items"     ".hits.hits" 2 "$r
 assert_json_gte       "POST /_search pagination: total ≥ 7"   ".hits.total.value" 7 "$resp"
 
 # Sensor filter — documents from pi-01
-resp=$(http_get "${MAIN_URL}/indexes/e2e-logs/_search?q=sensor:pi-01")
-assert_status   "GET /_search?q=sensor:pi-01  →  200"         "200" "$resp"
-assert_json_gte "/_search?q=sensor:pi-01: ≥ 2 hits"           ".hits.total.value" 2 "$resp"
+resp=$(http_get "${MAIN_URL}/indexes/e2e-logs/_search?q=_dynamic:pi-01")
+assert_status   "GET /_search?q=_dynamic:pi-01  →  200"         "200" "$resp"
+assert_json_gte "/_search?q=_dynamic:pi-01: ≥ 2 hits"           ".hits.total.value" 2 "$resp"
 
 # Completed group
 return 0
