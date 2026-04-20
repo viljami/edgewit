@@ -74,7 +74,7 @@ resp=$(http_post "${MAIN_URL}/indexes/e2e-aggs/_search" "application/json" '{
   }
 }')
 assert_status   "POST /_search sum+avg aggs  →  200"  "200" "$resp"
-assert_json_eq  "aggs sum: total_sum = 145"           ".aggregations.total_sum.value" "145" "$resp"
+assert_json_eq  "aggs sum: total_sum = 145.0"           ".aggregations.total_sum.value" "145.0" "$resp"
 assert_json_eq  "aggs avg: avg_amount = 14.5"         ".aggregations.avg_amount.value" "14.5" "$resp"
 
 # --- Date histogram (30-day buckets across ~6 months) ---

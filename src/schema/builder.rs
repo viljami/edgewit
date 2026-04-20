@@ -1,5 +1,5 @@
 use tantivy::schema::{
-    BytesOptions, DateOptions, FAST, IndexRecordOption, NumericOptions, STORED, Schema, TEXT,
+    BytesOptions, DateOptions, IndexRecordOption, NumericOptions, STORED, Schema,
     TextFieldIndexing, TextOptions,
 };
 use thiserror::Error;

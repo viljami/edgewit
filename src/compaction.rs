@@ -69,10 +69,12 @@ impl CompactionWorker {
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             // A valid Tantivy index directory always contains meta.json
-            if path.is_dir() && path.join("meta.json").exists()
-                && let Err(e) = self.compact_index(path.clone()).await {
-                    error!("Compaction failed for {:?}: {e}", path);
-                }
+            if path.is_dir()
+                && path.join("meta.json").exists()
+                && let Err(e) = self.compact_index(path.clone()).await
+            {
+                error!("Compaction failed for {:?}: {e}", path);
+            }
         }
         Ok(())
     }
