@@ -12,7 +12,7 @@ use edgewit::index_manager::IndexManager;
 use edgewit::indexer::{IndexerActor, PurgeCommand};
 use edgewit::registry::IndexRegistry;
 use edgewit::schema::definition::{
-    CompressionOption, IndexDefinition, PartitionStrategy, SchemaMode,
+    CompressionOption, FieldDefinition, FieldType, IndexDefinition, PartitionStrategy, SchemaMode,
 };
 use edgewit::wal::WalAppender;
 use metrics_exporter_prometheus::PrometheusBuilder;
@@ -21,6 +21,31 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 /// Uses `PartitionStrategy::None` and an empty fields map so no timestamp
 /// field is required and validation always passes.
 fn bench_index_def(name: &str) -> IndexDefinition {
+    let mut fields = HashMap::new();
+    fields.insert(
+        "timestamp".to_string(),
+        FieldDefinition {
+            field_type: FieldType::Datetime,
+            indexed: true,
+            stored: false,
+            fast: true, // <-- This is critical!
+            optional: false,
+            default: None,
+        },
+    );
+    if name == "search-bench" {
+        fields.insert(
+            "amount".to_string(),
+            FieldDefinition {
+                field_type: FieldType::Float,
+                indexed: true,
+                stored: false,
+                fast: true, // <-- This is required for aggregations!
+                optional: false,
+                default: None,
+            },
+        );
+    }
     IndexDefinition {
         name: name.to_string(),
         description: None,
@@ -29,7 +54,7 @@ fn bench_index_def(name: &str) -> IndexDefinition {
         partition: PartitionStrategy::None,
         retention: None,
         compression: CompressionOption::Zstd,
-        fields: HashMap::new(),
+        fields,
         settings: HashMap::new(),
     }
 }
@@ -165,15 +190,13 @@ fn bench_search(c: &mut Criterion) {
         })
     });
 
-    // Aggregation fields are prefixed with `_source.` because all document
-    // data is stored inside the JSON `_source` field by the indexer.
     let aggs_query = json!({
         "size": 0,
         "aggs": {
-            "sum_amount": { "sum": { "field": "_source.amount" } },
+            "sum_amount": { "sum": { "field": "amount" } },
             "daily_sales": {
                 "date_histogram": {
-                    "field": "_source.timestamp",
+                    "field": "timestamp",
                     "fixed_interval": "1d"
                 }
             }

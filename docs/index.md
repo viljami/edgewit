@@ -24,6 +24,26 @@ Edgewit provides powerful full-text search and aggregations for local observabil
 - **Crash-Resilient:** Custom WAL implementation built for slow SD cards with deterministic startup recovery.
 - **Declarative Indexing:** YAML-based index definitions with strict, drop-unmapped, or dynamic schema modes.
 - **Single-Index Architecture:** One Tantivy index per logical index name — simple, predictable on-disk layout with no partition subdirectories.
+
+Edgewit is intentionally single-node only—there is no cluster configuration or distributed mode, by design.
+
+</section>
+
+<section id="benchmarks" class="card" markdown="1">
+## Benchmarks
+
+Edgewit was benchmarked against OpenSearch in a constrained environment (1 vCPU, Edgewit 256MB RAM, OpenSearch 1.5GB RAM, 100k docs from OpenSearch Rally `http_logs`). The results:
+
+| Metric                   | Edgewit         | OpenSearch     | Advantage    |
+| :----------------------- | :-------------- | :------------- | :----------- |
+| **Peak Memory Usage**    | ~25 MB          | >1 GB          | ~40x lighter |
+| **Ingestion Throughput** | 86,200 docs/sec | 6,800 docs/sec | 12.7x faster |
+| **Match All**            | 11,963 req/sec  | 379 req/sec    | 31x faster   |
+| **Term Search**          | 13,684 req/sec  | 335 req/sec    | 41x faster   |
+| **Aggregations**         | 15,912 req/sec  | 730 req/sec    | 21.8x faster |
+
+See [Benchmarks](benchmark.md) for details.
+
 </section>
 
 <section id="projects" class="card" markdown="1">

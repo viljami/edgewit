@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   edgewit:
@@ -8,15 +8,16 @@ services:
     image: edgewit:local
     container_name: edgewit
     ports:
-      # Port 9200 to align with OpenSearch compatibility goal
-      - "9200:9200"
+      - "9300:9200"
     volumes:
       # Persistent volume for Tantivy segments and WAL
-      - edgewit_data:/var/lib/edgewit
+      - edgewit_data:/data
     environment:
       - RUST_LOG=info,edgewit=debug
-      - EDGEWIT_DATA_DIR=/var/lib/edgewit
+      - EDGEWIT_DATA_DIR=/data
       - EDGEWIT_PORT=9200
+      - GIT_COMMIT_HASH=1
+      - BUILD_DATE="today"
     restart: unless-stopped
 
     # Optional: Simulate Raspberry Pi / edge constraints locally

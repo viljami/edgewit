@@ -37,7 +37,7 @@ FROM debian:bookworm-slim
 
 # Install runtime dependencies (e.g., ca-certificates for TLS if needed later)
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y ca-certificates util-linux && \
     rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group for security
@@ -52,8 +52,9 @@ WORKDIR /app
 # Copy the compiled binary from the builder
 COPY --from=builder /usr/src/edgewit/target/release/edgewit /usr/local/bin/edgewit
 
-# Switch to the non-root user
-USER edgewit
+# Copy entrypoint script and make it executable
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Set default environment variables
 ENV RUST_LOG=info
@@ -66,5 +67,6 @@ EXPOSE 9200
 # Mount point for persistent storage
 VOLUME ["/data"]
 
-# Run the binary
+# Use entrypoint script to fix permissions before running
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["edgewit"]

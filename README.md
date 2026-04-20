@@ -15,6 +15,7 @@ It provides powerful full-text search and aggregations for local observability, 
 - **Rust Safety & Performance**: Written purely in Rust, minimizing binary footprint while offering massive concurrency and CPU safety.
 - **Crash-Resilient Local WAL**: Custom Write-Ahead Log implementation explicitly designed to batch syncs and minimize unpredictable IOPS on edge SD-Cards, while ensuring 100% crash recovery.
 - **Single-Index Architecture**: One Tantivy index per logical index name—no partition subdirectories, no multi-reader fan-out. Simple, predictable storage under `data/indexes/<name>/`.
+- **No Cluster Mode**: Edgewit is intentionally single-node only. There is no cluster configuration or distributed mode, and this is unlikely to change in the future. This keeps the system simple, predictable, and perfectly suited for edge and embedded deployments.
 - **Simple Deployment**: Single binary. Single container. No JVM, no external database dependencies.
 - **Minimalist Security**: Designed for trusted network environments by default, with optional API Key authentication available via environment variables to maintain absolute minimum overhead.
 
@@ -22,16 +23,20 @@ It provides powerful full-text search and aggregations for local observability, 
 
 Edgewit was built specifically to run in environments where JVM-based systems fail. In our edge-simulated benchmark (1 vCPU, constrained RAM), Edgewit completely outperformed a tuned OpenSearch node.
 
-**Test Environment:** 1 vCPU. Edgewit (256MB RAM Limit) vs OpenSearch (1.5GB RAM Limit).
+**Test Environment:** 1 vCPU. Edgewit (256MB RAM Limit) vs OpenSearch (1.5GB RAM Limit).  
 **Dataset:** 100,000 document subset of the OpenSearch Rally `http_logs` dataset.
 
-| Metric                   | Edgewit                    | OpenSearch            | Advantage    |
-| :----------------------- | :------------------------- | :-------------------- | :----------- |
-| **Peak Memory Usage**    | **~25 MB**                 | > 1 GB (Thrashing)    | ~40x lighter |
-| **Ingestion Throughput** | **~300,000 docs/sec**      | 0 docs/sec (Crashed)  | Infinite     |
-| **Search: Match All**    | **3,402 req/sec** (2.95ms) | 255 req/sec (43.62ms) | 13x faster   |
-| **Search: Term Query**   | **6,558 req/sec** (2.40ms) | 63 req/sec (159.18ms) | 104x faster  |
-| **Search: Aggregation**  | **1,730 req/sec** (6.08ms) | 108 req/sec (95.63ms) | 16x faster   |
+| Metric                   | Edgewit             | OpenSearch     | Advantage    |
+| :----------------------- | :------------------ | :------------- | :----------- |
+| **Peak Memory Usage**    | **~25 MB**          | > 1 GB         | ~40x lighter |
+| **Ingestion Throughput** | **86,200 docs/sec** | 6,800 docs/sec | 12.7x faster |
+| **Search: Match All**    | **11,963 req/sec**  | 379 req/sec    | 31x faster   |
+| **Search: Term Query**   | **13,684 req/sec**  | 335 req/sec    | 41x faster   |
+| **Search: Aggregation**  | **15,912 req/sec**  | 730 req/sec    | 21.8x faster |
+
+**Ingestion Throughput Calculation:**  
+Edgewit: 17.24 req/sec × 5000 docs = **86,200 docs/sec**  
+OpenSearch: 1.36 req/sec × 5000 docs = **6,800 docs/sec**
 
 For the full detailed results and methodology, see [BENCHMARK_PLAN.md](BENCHMARK_PLAN.md) or our documentation site.
 

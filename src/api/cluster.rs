@@ -115,10 +115,11 @@ pub async fn root_handler() -> Json<Value> {
     }))
 }
 
+/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for OpenSearch compatibility only and always returns single-node status.
 #[utoipa::path(
     get,
     path = "/_health",
-    responses((status = 200, description = "Cluster health status", body = HealthResponse))
+    responses((status = 200, description = "Cluster health status (always single-node; no cluster configuration in Edgewit)", body = HealthResponse))
 )]
 pub async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
@@ -131,10 +132,11 @@ pub async fn health_handler() -> Json<HealthResponse> {
     })
 }
 
+/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for OpenSearch compatibility only and always returns single-node statistics.
 #[utoipa::path(
     get,
     path = "/_stats",
-    responses((status = 200, description = "Cluster and index statistics", body = StatsResponse))
+    responses((status = 200, description = "Cluster and index statistics (always single-node; no cluster configuration in Edgewit)", body = StatsResponse))
 )]
 pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse> {
     let mut num_docs: u64 = 0;
@@ -188,10 +190,11 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
     })
 }
 
+/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for OpenSearch compatibility only and always returns single-node index stats.
 #[utoipa::path(
     get,
     path = "/_cat/indexes",
-    responses((status = 200, description = "List of indexes with stats", body = Vec<CatIndex>))
+    responses((status = 200, description = "List of indexes with stats (always single-node; no cluster configuration in Edgewit)", body = Vec<CatIndex>))
 )]
 pub async fn cat_indexes_handler(State(state): State<AppState>) -> Json<Vec<CatIndex>> {
     let registered = state.registry.list();
