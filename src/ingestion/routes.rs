@@ -47,7 +47,7 @@ pub async fn ingest_doc_handler(
     }
 
     match rx.await {
-        Ok(Ok(_)) => Ok((
+        Ok(Ok(())) => Ok((
             StatusCode::CREATED,
             Json(json!({
                 "_index": index,
@@ -67,7 +67,7 @@ pub async fn ingest_doc_handler(
     }
 }
 
-/// Handler for OpenSearch compatible bulk ingestion
+/// Handler for `OpenSearch` compatible bulk ingestion
 #[utoipa::path(
     post,
     path = "/_bulk",
@@ -128,7 +128,7 @@ pub async fn bulk_handler(
     let mut has_errors = false;
 
     for (i, rx) in receivers.into_iter().enumerate() {
-        let status = if let Ok(Ok(_)) = rx.await {
+        let status = if let Ok(Ok(())) = rx.await {
             201
         } else {
             has_errors = true;

@@ -63,6 +63,7 @@ pub(crate) fn dir_size(path: &std::path::Path) -> u64 {
 }
 
 /// Parses a retention string like `"7d"`, `"12h"`, `"1M"` into a [`chrono::Duration`].
+#[must_use]
 pub fn parse_retention_duration(s: &str) -> Option<chrono::Duration> {
     if s.is_empty() {
         return None;
@@ -199,7 +200,7 @@ pub async fn run_retention_worker(
     registry: IndexRegistry,
     purge_tx: mpsc::Sender<PurgeCommand>,
 ) {
-    let mut interval = tokio::time::interval(Duration::from_secs(5 * 60));
+    let mut interval = tokio::time::interval(Duration::from_mins(5));
     loop {
         interval.tick().await;
         info!("Running retention checks...");

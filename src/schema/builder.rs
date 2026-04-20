@@ -12,7 +12,7 @@ pub enum SchemaBuilderError {
     ValidationError(String),
 }
 
-/// Converts an Edgewit IndexDefinition into a Tantivy Schema.
+/// Converts an Edgewit `IndexDefinition` into a Tantivy Schema.
 pub fn build_schema(definition: &IndexDefinition) -> Result<Schema, SchemaBuilderError> {
     let mut builder = Schema::builder();
 

@@ -52,31 +52,25 @@ impl WalAppender {
         use std::io::ErrorKind;
         match err.kind() {
             ErrorKind::NotFound => format!(
-                "{} (path: {:?}). Hint: The file or directory does not exist. \
-                 Verify the configured data directory and make sure the WAL file path is correct.",
-                err, path
+                "{err} (path: {path:?}). Hint: The file or directory does not exist. \
+                 Verify the configured data directory and make sure the WAL file path is correct."
             ),
             ErrorKind::PermissionDenied => format!(
-                "{} (path: {:?}). Hint: Permission denied. \
+                "{err} (path: {path:?}). Hint: Permission denied. \
                  Check file/directory ownership and permissions. \
-                 If running in a container, ensure the container user owns the mounted volume (e.g. /data) or adjust the Dockerfile to chown the directory during image build.",
-                err, path
+                 If running in a container, ensure the container user owns the mounted volume (e.g. /data) or adjust the Dockerfile to chown the directory during image build."
             ),
             ErrorKind::AlreadyExists => format!(
-                "{} (path: {:?}). Hint: Name collision — check for unexpected files/directories at the WAL path.",
-                err, path
+                "{err} (path: {path:?}). Hint: Name collision — check for unexpected files/directories at the WAL path."
             ),
             ErrorKind::Interrupted => format!(
-                "{} (path: {:?}). Hint: Operation was interrupted; retrying might succeed.",
-                err, path
+                "{err} (path: {path:?}). Hint: Operation was interrupted; retrying might succeed."
             ),
             ErrorKind::UnexpectedEof => format!(
-                "{} (path: {:?}). Hint: Partial read encountered. The WAL file may be truncated or corrupted.",
-                err, path
+                "{err} (path: {path:?}). Hint: Partial read encountered. The WAL file may be truncated or corrupted."
             ),
             _ => format!(
-                "{} (path: {:?}). Hint: Possible causes include read-only mounts, no space left on device, or hardware I/O errors.",
-                err, path
+                "{err} (path: {path:?}). Hint: Possible causes include read-only mounts, no space left on device, or hardware I/O errors."
             ),
         }
     }
@@ -268,6 +262,11 @@ pub struct WalReader {
 }
 
 impl WalReader {
+    /// Creates a new `WalReader` that reads from `path` starting at `start_offset`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened or seeked.
     pub fn new(path: &Path, start_offset: u64) -> std::io::Result<Self> {
         use std::io::{Seek, SeekFrom};
 
@@ -292,6 +291,11 @@ impl WalReader {
         }
     }
 
+    /// Returns the next frame from the WAL file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the frame cannot be read.
     pub fn next_frame(&mut self) -> std::io::Result<Option<(IngestEvent, u64)>> {
         use std::io::Read;
         let mut len_buf = [0u8; 2];

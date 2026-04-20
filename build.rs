@@ -29,8 +29,8 @@ fn main() {
     });
 
     // Export them as environment variables that can be used via env!()
-    println!("cargo:rustc-env=GIT_COMMIT_HASH={}", commit);
-    println!("cargo:rustc-env=BUILD_DATE={}", build_date);
+    println!("cargo:rustc-env=GIT_COMMIT_HASH={commit}");
+    println!("cargo:rustc-env=BUILD_DATE={build_date}");
 
     // Re-run the build script if HEAD changes
     println!("cargo:rerun-if-changed=.git/HEAD");

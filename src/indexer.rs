@@ -38,6 +38,7 @@ pub struct IndexerActor {
 }
 
 impl IndexerActor {
+    #[must_use]
     pub fn new(
         manager: IndexManager,
         registry: IndexRegistry,
@@ -192,11 +193,11 @@ impl IndexerActor {
         let doc = TantivyDocument::parse_json(&schema, &doc_str)
             .map_err(|e| format!("Failed to parse tantivy doc: {e}"))?;
 
-        self.writers
-            .get_mut(&event.index)
-            .unwrap()
-            .add_document(doc)
-            .map_err(|e| format!("Tantivy write error: {e}"))?;
+        if let Some(writer) = self.writers.get_mut(&event.index) {
+            writer
+                .add_document(doc)
+                .map_err(|e| format!("Tantivy write error: {e}"))?;
+        }
 
         self.dirty_writers.insert(event.index, wal_offset);
         Ok(())
@@ -285,7 +286,7 @@ impl IndexerActor {
                         commit.set_payload(&offset.to_string());
                         match commit.commit() {
                             Ok(_) => {
-                                info!("Committed '{index_name}' at WAL offset {offset}.")
+                                info!("Committed '{index_name}' at WAL offset {offset}.");
                             }
                             Err(e) => error!("Commit failed for '{index_name}': {e}"),
                         }
@@ -320,18 +321,18 @@ mod tests {
         let old_ts = TantivyDateTime::from_timestamp_secs(1577836800); // 2020-01-01T00:00:00Z
         writer
             .add_document(doc!(ts_field => old_ts, msg_field => "old doc"))
-            .unwrap();
+            .expect("failed to add old document");
 
         // Recent document: 2024
         let new_ts = TantivyDateTime::from_timestamp_secs(1704067200); // 2024-01-01T00:00:00Z
         writer
             .add_document(doc!(ts_field => new_ts, msg_field => "new doc"))
-            .unwrap();
+            .expect("failed to add new document");
 
-        writer.commit().unwrap();
+        writer.commit().expect("failed to commit documents");
 
         // Sanity: both docs visible before purge
-        let reader = index.reader().unwrap();
+        let reader = index.reader().expect("failed to open reader");
         assert_eq!(reader.searcher().num_docs(), 2);
 
         // Delete everything before 2023-01-01
@@ -339,11 +340,13 @@ mod tests {
         let upper_term = Term::from_field_date_for_search(ts_field, cutoff);
         let range_query =
             tantivy::query::RangeQuery::new(Bound::Unbounded, Bound::Excluded(upper_term));
-        writer.delete_query(Box::new(range_query)).unwrap();
-        writer.commit().unwrap();
+        writer
+            .delete_query(Box::new(range_query))
+            .expect("failed to delete old documents");
+        writer.commit().expect("failed to commit documents");
 
         // After purge: only the 2024 doc remains
-        reader.reload().unwrap();
+        reader.reload().expect("failed to reload reader");
         assert_eq!(
             reader.searcher().num_docs(),
             1,

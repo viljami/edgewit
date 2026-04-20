@@ -115,7 +115,7 @@ pub async fn root_handler() -> Json<Value> {
     }))
 }
 
-/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for OpenSearch compatibility only and always returns single-node status.
+/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for `OpenSearch` compatibility only and always returns single-node status.
 #[utoipa::path(
     get,
     path = "/_health",
@@ -132,7 +132,7 @@ pub async fn health_handler() -> Json<HealthResponse> {
     })
 }
 
-/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for OpenSearch compatibility only and always returns single-node statistics.
+/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for `OpenSearch` compatibility only and always returns single-node statistics.
 #[utoipa::path(
     get,
     path = "/_stats",
@@ -158,7 +158,7 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
     metrics::gauge!("edgewit_index_docs_total").set(num_docs as f64);
     metrics::gauge!("edgewit_index_segments_total").set(num_segments as f64);
 
-    let stats = IndexStats {
+    let total = IndexStats {
         docs: DocsStats {
             count: num_docs,
             deleted: 0,
@@ -185,12 +185,12 @@ pub async fn stats_handler(State(state): State<AppState>) -> Json<StatsResponse>
                     size_in_bytes: total_size,
                 },
             },
-            total: stats,
+            total,
         },
     })
 }
 
-/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for OpenSearch compatibility only and always returns single-node index stats.
+/// Note: Edgewit does not support cluster configuration or distributed mode. This endpoint is provided for `OpenSearch` compatibility only and always returns single-node index stats.
 #[utoipa::path(
     get,
     path = "/_cat/indexes",

@@ -60,15 +60,19 @@ fn bench_index_def(name: &str) -> IndexDefinition {
 }
 
 async fn setup_app() -> (TestServer, TempDir) {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
     let data_dir = temp_dir.path().to_path_buf();
 
     let registry = IndexRegistry::new();
 
     // The indexer looks up the registry for every ingest event; indexes must be
     // pre-registered or every document will be silently dropped with an error log.
-    registry.upsert(bench_index_def("bench-index")).unwrap();
-    registry.upsert(bench_index_def("search-bench")).unwrap();
+    registry
+        .upsert(bench_index_def("bench-index"))
+        .expect("failed to upsert bench-index");
+    registry
+        .upsert(bench_index_def("search-bench"))
+        .expect("failed to upsert search-bench");
 
     let index_manager = IndexManager::new(data_dir.clone(), registry.clone(), 20);
 
@@ -110,7 +114,7 @@ async fn setup_app() -> (TestServer, TempDir) {
 }
 
 fn bench_ingest(c: &mut Criterion) {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
     let (server, _dir) = rt.block_on(setup_app());
 
     let mut group = c.benchmark_group("ingest");
@@ -142,7 +146,7 @@ fn bench_ingest(c: &mut Criterion) {
 }
 
 fn bench_search(c: &mut Criterion) {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
     let (server, _dir) = rt.block_on(setup_app());
 
     // Pre-populate 10k documents

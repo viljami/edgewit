@@ -16,13 +16,16 @@ fn get_expected_auth_header() -> Option<&'static str> {
             std::env::var("EDGEWIT_API_KEY")
                 .ok()
                 .filter(|key| !key.is_empty())
-                .map(|key| format!("Bearer {}", key))
+                .map(|key| format!("Bearer {key}"))
         })
         .as_deref()
 }
 
 /// Axum middleware that enforces optional API key authentication.
 /// If `EDGEWIT_API_KEY` is set, requires an `Authorization: Bearer <key>` header.
+///
+/// # Errors
+/// Returns `401 UNAUTHORIZED` if the API key is missing or invalid.
 pub async fn auth_middleware(req: Request, next: Next) -> Result<Response, StatusCode> {
     if let Some(expected_auth) = get_expected_auth_header() {
         let auth_header = req

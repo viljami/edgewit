@@ -348,18 +348,20 @@ mod tests {
         let mut writer = index.writer(15_000_000).unwrap();
         writer
             .add_document(doc!(source_field => json!({"message": "hello"})))
-            .unwrap();
+            .expect("failed to add document");
         writer
             .add_document(doc!(source_field => json!({"message": "world"})))
-            .unwrap();
-        writer.commit().unwrap();
+            .expect("failed to add document");
+        writer.commit().expect("failed to commit documents");
 
-        let reader = index.reader().unwrap();
+        let reader = index.reader().expect("failed to create reader");
 
-        let res = execute_search(&[reader.clone()], "*", None, 0, 10, None).unwrap();
+        let res = execute_search(&[reader.clone()], "*", None, 0, 10, None)
+            .expect("failed to execute search");
         assert_eq!(res.hits.total.value, 2);
 
-        let res_empty = execute_search(&[reader.clone()], " ", None, 0, 10, None).unwrap();
+        let res_empty = execute_search(&[reader.clone()], " ", None, 0, 10, None)
+            .expect("failed to execute search");
         assert_eq!(res_empty.hits.total.value, 2);
     }
 
@@ -370,14 +372,17 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut writer = index.writer(15_000_000).unwrap();
-        writer.add_document(doc!(text_field => "hello")).unwrap();
-        writer.commit().unwrap();
+        let mut writer = index.writer(15_000_000).expect("failed to create writer");
+        writer
+            .add_document(doc!(text_field => "hello"))
+            .expect("failed to add document");
+        writer.commit().expect("failed to commit documents");
 
-        let reader = index.reader().unwrap();
+        let reader = index.reader().expect("failed to create reader");
 
         // Should return 0 hits gracefully when _source field is absent
-        let res = execute_search(&[reader], "*", None, 0, 10, None).unwrap();
+        let res =
+            execute_search(&[reader], "*", None, 0, 10, None).expect("failed to execute search");
         assert_eq!(res.hits.total.value, 0);
         assert!(res.hits.hits.is_empty());
     }

@@ -42,12 +42,12 @@ pub async fn create_index_handler(
 
     // Ensure the payload name matches the URL path
     if payload.name != index {
-        payload.name = index.clone();
+        payload.name.clone_from(&index);
     }
 
     // Validate and register/upsert in memory
     match state.registry.upsert(payload.clone()) {
-        Ok(_) => {
+        Ok(()) => {
             // Persist to disk
             let indexes_dir = state.data_dir.join("indexes");
             if let Err(e) = std::fs::create_dir_all(&indexes_dir) {
@@ -58,7 +58,7 @@ pub async fn create_index_handler(
                 );
             }
 
-            let file_path = indexes_dir.join(format!("{}.index.yaml", index));
+            let file_path = indexes_dir.join(format!("{index}.index.yaml"));
             match serde_yaml::to_string(&payload) {
                 Ok(yaml_str) => {
                     if let Err(e) = std::fs::write(&file_path, yaml_str) {
@@ -150,7 +150,7 @@ pub async fn delete_index_handler(
     match state.registry.remove(&index) {
         Ok(_) => {
             let indexes_dir = state.data_dir.join("indexes");
-            let file_path = indexes_dir.join(format!("{}.index.yaml", index));
+            let file_path = indexes_dir.join(format!("{index}.index.yaml"));
 
             // Try to delete the yaml file
             if file_path.exists()

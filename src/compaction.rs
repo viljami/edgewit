@@ -24,6 +24,7 @@ pub struct CompactionWorker {
 }
 
 impl CompactionWorker {
+    #[must_use]
     pub fn new(data_dir: PathBuf) -> Self {
         let interval_secs: u64 = std::env::var("EDGEWIT_COMPACTION_INTERVAL_SECS")
             .unwrap_or_else(|_| "300".to_string())
@@ -105,7 +106,7 @@ impl CompactionWorker {
             .searcher()
             .segment_readers()
             .iter()
-            .map(|s| s.segment_id())
+            .map(tantivy::SegmentReader::segment_id)
             .collect();
 
         tokio::task::spawn_blocking(move || -> Result<(), CompactionError> {

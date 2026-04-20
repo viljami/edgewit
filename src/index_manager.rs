@@ -21,6 +21,7 @@ pub struct IndexManager {
 }
 
 impl IndexManager {
+    #[must_use]
     pub fn new(base_dir: PathBuf, registry: IndexRegistry, docstore_cache_blocks: usize) -> Self {
         Self {
             base_dir,
@@ -32,26 +33,25 @@ impl IndexManager {
     }
 
     /// Returns the on-disk path for a given index.
+    #[must_use]
     pub fn index_path(&self, index_name: &str) -> PathBuf {
         self.base_dir.join("indexes").join(index_name)
     }
 
     /// Returns (or lazily opens/creates) the [`Index`] for `index_name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index cannot be opened or created.
     pub fn get_or_create_index(&self, index_name: &str) -> Result<Index, String> {
         // Fast path: already cached
+        if let Ok(indexes) = self.indexes.read()
+            && let Some(idx) = indexes.get(index_name)
         {
-            let indexes = self.indexes.read().unwrap();
-            if let Some(idx) = indexes.get(index_name) {
-                return Ok(idx.clone());
-            }
+            return Ok(idx.clone());
         }
 
         // Slow path: open or create on disk
-        let mut indexes = self.indexes.write().unwrap();
-        if let Some(idx) = indexes.get(index_name) {
-            return Ok(idx.clone()); // another thread may have beaten us here
-        }
-
         let def = self
             .registry
             .get(index_name)
@@ -64,27 +64,27 @@ impl IndexManager {
         let dir = tantivy::directory::MmapDirectory::open(&path).map_err(|e| e.to_string())?;
         let index = Index::open_or_create(dir, schema).map_err(|e| e.to_string())?;
 
-        indexes.insert(index_name.to_string(), index.clone());
+        if let Ok(mut indexes) = self.indexes.write() {
+            indexes.insert(index_name.to_string(), index.clone());
+        }
+
         Ok(index)
     }
 
     /// Returns (or lazily creates) an [`IndexReader`] for `index_name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the index cannot be opened or created.
     pub fn get_reader(&self, index_name: &str) -> Result<IndexReader, String> {
         // Fast path
+        if let Ok(readers) = self.readers.read()
+            && let Some(r) = readers.get(index_name)
         {
-            let readers = self.readers.read().unwrap();
-            if let Some(r) = readers.get(index_name) {
-                return Ok(r.clone());
-            }
-        }
-
-        let index = self.get_or_create_index(index_name)?;
-
-        let mut readers = self.readers.write().unwrap();
-        if let Some(r) = readers.get(index_name) {
             return Ok(r.clone());
         }
 
+        let index = self.get_or_create_index(index_name)?;
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
@@ -95,7 +95,10 @@ impl IndexManager {
                 e.to_string()
             })?;
 
-        readers.insert(index_name.to_string(), reader.clone());
+        if let Ok(mut readers) = self.readers.write() {
+            readers.insert(index_name.to_string(), reader.clone());
+        }
+
         Ok(reader)
     }
 }

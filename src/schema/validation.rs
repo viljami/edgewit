@@ -12,7 +12,7 @@ pub enum ValidationError {
     YamlError(#[from] serde_yaml::Error),
 }
 
-/// Validates an IndexDefinition configuration.
+/// Validates an `IndexDefinition` configuration.
 /// Ensures that partition constraints, retention formats, and field constraints are correct.
 pub fn validate_schema(def: &IndexDefinition) -> Result<(), ValidationError> {
     // If partitioning is enabled, the timestamp field MUST exist in the fields map
@@ -33,6 +33,7 @@ pub fn validate_schema(def: &IndexDefinition) -> Result<(), ValidationError> {
 }
 
 /// Checks if a retention string strictly follows the numeric + unit format
+#[must_use]
 pub fn is_valid_retention(retention: &str) -> bool {
     if retention.is_empty() {
         return false;

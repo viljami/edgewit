@@ -16,8 +16,8 @@ pub enum IngestionValidationError {
     },
 }
 
-/// Validates an incoming JSON document against an IndexDefinition schema.
-/// It applies defaults, enforces strictness rules based on SchemaMode, and type-checks fields.
+/// Validates an incoming JSON document against an `IndexDefinition` schema.
+/// It applies defaults, enforces strictness rules based on `SchemaMode`, and type-checks fields.
 pub fn validate_and_process_document(
     def: &IndexDefinition,
     document: Value,

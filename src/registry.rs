@@ -28,7 +28,8 @@ pub struct IndexRegistry {
 }
 
 impl IndexRegistry {
-    /// Create a new empty IndexRegistry.
+    /// Create a new empty `IndexRegistry`.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             indexes: Arc::new(RwLock::new(HashMap::new())),
@@ -116,7 +117,7 @@ impl IndexRegistry {
             {
                 let def = IndexDefinition::from_file(&path)?;
                 match self.register(def) {
-                    Ok(_) => {
+                    Ok(()) => {
                         tracing::info!("Loaded index definition: {}", file_name);
                         count += 1;
                     }
