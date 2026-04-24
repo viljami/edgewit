@@ -288,8 +288,8 @@ fn extract_query_string(params: &SearchQueryParams, body: Option<&SearchRequestB
 }
 
 #[utoipa::path(
-    get,
-    path = "/{index}/_search",
+    post,
+    path = "/indexes/{index}/_search",
     tag = "search",
     responses(
         (status = 200, description = "Search results for index")

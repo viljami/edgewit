@@ -1,13 +1,18 @@
+use axum::{
+    Router,
+    extract::State,
+    response::IntoResponse,
+    routing::{get, post},
+};
+use metrics_exporter_prometheus::PrometheusHandle;
+use std::path::PathBuf;
+use tokio::sync::mpsc;
+use utoipa::OpenApi;
+
 pub mod auth;
 pub mod cluster;
 pub mod indexes;
 pub mod search;
-
-use axum::{
-    Router,
-    routing::{get, post},
-};
-use utoipa::OpenApi;
 
 pub use cluster::*;
 pub use search::*;
@@ -15,8 +20,8 @@ pub use search::*;
 use crate::ingestion::routes as ingest;
 pub use crate::ingestion::routes::*;
 
-use axum::extract::State;
-use axum::response::IntoResponse;
+use crate::index_manager::IndexManager;
+use crate::registry::IndexRegistry;
 
 #[utoipa::path(
     get,
@@ -29,16 +34,11 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     state.prometheus_handle.render()
 }
 
-use crate::index_manager::IndexManager;
-use crate::registry::IndexRegistry;
-use std::path::PathBuf;
-use tokio::sync::mpsc;
-
 #[derive(Clone)]
 pub struct AppState {
     pub wal_sender: mpsc::Sender<crate::wal::WalRequest>,
     pub index_manager: IndexManager,
-    pub prometheus_handle: metrics_exporter_prometheus::PrometheusHandle,
+    pub prometheus_handle: PrometheusHandle,
     pub registry: IndexRegistry,
     pub data_dir: PathBuf,
 }
